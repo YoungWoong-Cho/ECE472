@@ -316,6 +316,7 @@ class Trainer(object):
                 image = train_data["image"]
                 label = train_data["label"]
 
+
                 self.optimizer.zero_grad()
                 output = self.model(image)
                 loss = self.criterion(output, label)
@@ -379,12 +380,12 @@ class Trainer(object):
 
 CONFIG = {
     "data_root": "./hw4/dataset",
-    "dataset_name": "CIFAR-10",  # CIFAR-10 or CIFAR-100
+    "dataset_name": "CIFAR-100",  # CIFAR-10 or CIFAR-100
     "train_val_split": 0.8,
     "cuda": torch.cuda.is_available(),
     "train": {
-        "batch_size": 256,
-        "epoch": 200,
+        "batch_size": 128,
+        "epoch": 400,
         "shuffle": True,
         "criterion": "CrossEntropyLoss",
         "optimizer": "Adam",
@@ -410,7 +411,7 @@ def main(a):
     # Create a ViT model
     model = ViT(image_size = 32,
                 patch_size = 4,
-                num_classes = 10,
+                num_classes = 10 if CONFIG['dataset_name'] == 'CIFAR-10' else 100,
                 dim = 512,
                 depth = 6,
                 heads = 8,
