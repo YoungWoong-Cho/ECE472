@@ -23,6 +23,8 @@ from absl import app
 from tqdm import trange
 from pdb import set_trace as bp
 
+from einops import rearrange, repeat
+from einops.layers.torch import Rearrange
 
 def accuracy(output, target):
     with torch.no_grad():
@@ -115,10 +117,10 @@ class CIFARDataset(Dataset):
         image = (image - image.mean()) / image.std()
 
         label = torch.Tensor(self.label)[idx].type(torch.LongTensor)
-
-        if self.config['mps']:
-            image = image.to('mps')
-            label = label.to('mps')
+        
+        if self.config['cuda']:
+            image = image.to('cuda')
+            label = label.to('cuda')
 
         sample = {"image": image, "label": label}
         return sample
@@ -169,199 +171,118 @@ class CIFARDataLoader:
     def test_dataloader(self):
         return self._test_dataloader
 
+class PreNorm(nn.Module):
+    def __init__(self, dim, fn):
+        super().__init__()
+        self.norm = nn.LayerNorm(dim)
+        self.fn = fn
+    def forward(self, x, **kwargs):
+        return self.fn(self.norm(x), **kwargs)
 
-# # 3x3 convolution
-# def conv3x3(in_channels, out_channels, stride=1):
-#     return nn.Conv2d(
-#         in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False
-#     )
+class FeedForward(nn.Module):
+    def __init__(self, dim, hidden_dim, dropout = 0.):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, dim),
+            nn.Dropout(dropout)
+        )
+    def forward(self, x):
+        return self.net(x)
 
+class Attention(nn.Module):
+    def __init__(self, dim, heads = 8, dim_head = 64, dropout = 0.):
+        super().__init__()
+        inner_dim = dim_head *  heads
+        project_out = not (heads == 1 and dim_head == dim)
 
-# # Residual block
-# class ResidualBlock(nn.Module):
-#     def __init__(self, in_channels, out_channels, stride=1, downsample=None):
-#         super(ResidualBlock, self).__init__()
-#         self.conv1 = conv3x3(in_channels, out_channels, stride)
-#         self.bn1 = nn.BatchNorm2d(out_channels)
-#         self.relu = nn.ReLU(inplace=True)
-#         self.conv2 = conv3x3(out_channels, out_channels)
-#         self.bn2 = nn.BatchNorm2d(out_channels)
-#         self.downsample = downsample
+        self.heads = heads
+        self.scale = dim_head ** -0.5
 
-#     def forward(self, x):
-#         residual = x
-#         out = self.conv1(x)
-#         out = self.bn1(out)
-#         out = self.relu(out)
-#         out = self.conv2(out)
-#         out = self.bn2(out)
-#         if self.downsample:
-#             residual = self.downsample(x)
-#         out += residual
-#         out = self.relu(out)
-#         return out
+        self.attend = nn.Softmax(dim = -1)
+        self.dropout = nn.Dropout(dropout)
 
+        self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
 
-# # ResNet
-# class ResNet(nn.Module):
-#     def __init__(self, block, layers, num_classes=10):
-#         super(ResNet, self).__init__()
-#         self.in_channels = 16
-#         self.conv = conv3x3(3, 16)
-#         self.bn = nn.BatchNorm2d(16)
-#         self.relu = nn.ReLU(inplace=True)
-#         self.layer1 = self.make_layer(block, 16, layers[0])
-#         self.layer2 = self.make_layer(block, 32, layers[1], 2)
-#         self.layer3 = self.make_layer(block, 64, layers[2], 2)
-#         self.avg_pool = nn.AvgPool2d(8)
-#         self.fc = nn.Linear(64, num_classes)
-
-#     def make_layer(self, block, out_channels, blocks, stride=1):
-#         downsample = None
-#         if (stride != 1) or (self.in_channels != out_channels):
-#             downsample = nn.Sequential(
-#                 conv3x3(self.in_channels, out_channels, stride=stride),
-#                 nn.BatchNorm2d(out_channels),
-#             )
-#         layers = []
-#         layers.append(block(self.in_channels, out_channels, stride, downsample))
-#         self.in_channels = out_channels
-#         for i in range(1, blocks):
-#             layers.append(block(out_channels, out_channels))
-#         return nn.Sequential(*layers)
-
-#     def forward(self, x):
-#         out = self.conv(x)
-#         out = self.bn(out)
-#         out = self.relu(out)
-#         out = self.layer1(out)
-#         out = self.layer2(out)
-#         out = self.layer3(out)
-#         out = self.avg_pool(out)
-#         out = out.view(out.size(0), -1)
-#         out = self.fc(out)
-#         return out
-
-
-class Block(nn.Module):
-    def __init__(self, num_layers, in_channels, out_channels, identity_downsample=None, stride=1):
-        assert num_layers in [18, 34, 50, 101, 152], "should be a a valid architecture"
-        super(Block, self).__init__()
-        self.num_layers = num_layers
-        if self.num_layers > 34:
-            self.expansion = 4
-        else:
-            self.expansion = 1
-        # ResNet50, 101, and 152 include additional layer of 1x1 kernels
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
-        self.bn1 = nn.BatchNorm2d(out_channels)
-        if self.num_layers > 34:
-            self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=stride, padding=1)
-        else:
-            # for ResNet18 and 34, connect input directly to (3x3) kernel (skip first (1x1))
-            self.conv2 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1)
-        self.bn2 = nn.BatchNorm2d(out_channels)
-        self.conv3 = nn.Conv2d(out_channels, out_channels * self.expansion, kernel_size=1, stride=1, padding=0)
-        self.bn3 = nn.BatchNorm2d(out_channels * self.expansion)
-        self.relu = nn.ReLU()
-        self.identity_downsample = identity_downsample
+        self.to_out = nn.Sequential(
+            nn.Linear(inner_dim, dim),
+            nn.Dropout(dropout)
+        ) if project_out else nn.Identity()
 
     def forward(self, x):
-        identity = x
-        if self.num_layers > 34:
-            x = self.conv1(x)
-            x = self.bn1(x)
-            x = self.relu(x)
-        x = self.conv2(x)
-        x = self.bn2(x)
-        x = self.relu(x)
-        x = self.conv3(x)
-        x = self.bn3(x)
+        qkv = self.to_qkv(x).chunk(3, dim = -1)
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = self.heads), qkv)
 
-        if self.identity_downsample is not None:
-            identity = self.identity_downsample(identity)
+        dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
 
-        x += identity
-        x = self.relu(x)
-        return x
+        attn = self.attend(dots)
+        attn = self.dropout(attn)
 
-class ResNet(nn.Module):
-    def __init__(self, num_layers, block, image_channels, num_classes):
-        assert num_layers in [18, 34, 50, 101, 152], f'ResNet{num_layers}: Unknown architecture! Number of layers has ' \
-                                                     f'to be 18, 34, 50, 101, or 152 '
-        super(ResNet, self).__init__()
-        if num_layers < 50:
-            self.expansion = 1
-        else:
-            self.expansion = 4
-        if num_layers == 18:
-            layers = [2, 2, 2, 2]
-        elif num_layers == 34 or num_layers == 50:
-            layers = [3, 4, 6, 3]
-        elif num_layers == 101:
-            layers = [3, 4, 23, 3]
-        else:
-            layers = [3, 8, 36, 3]
-        self.in_channels = 64
-        self.conv1 = nn.Conv2d(image_channels, 64, kernel_size=7, stride=2, padding=3)
-        self.bn1 = nn.BatchNorm2d(64)
-        self.relu = nn.ReLU()
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        out = torch.matmul(attn, v)
+        out = rearrange(out, 'b h n d -> b n (h d)')
+        return self.to_out(out)
 
-        # ResNetLayers
-        self.layer1 = self.make_layers(num_layers, block, layers[0], intermediate_channels=64, stride=1)
-        self.layer2 = self.make_layers(num_layers, block, layers[1], intermediate_channels=128, stride=2)
-        self.layer3 = self.make_layers(num_layers, block, layers[2], intermediate_channels=256, stride=2)
-        self.layer4 = self.make_layers(num_layers, block, layers[3], intermediate_channels=512, stride=2)
-
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512 * self.expansion, num_classes)
-
+class Transformer(nn.Module):
+    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout = 0.):
+        super().__init__()
+        self.layers = nn.ModuleList([])
+        for _ in range(depth):
+            self.layers.append(nn.ModuleList([
+                PreNorm(dim, Attention(dim, heads = heads, dim_head = dim_head, dropout = dropout)),
+                PreNorm(dim, FeedForward(dim, mlp_dim, dropout = dropout))
+            ]))
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.maxpool(x)
-
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
-
-        x = self.avgpool(x)
-        x = x.reshape(x.shape[0], -1)
-        x = self.fc(x)
+        for attn, ff in self.layers:
+            x = attn(x) + x
+            x = ff(x) + x
         return x
 
-    def make_layers(self, num_layers, block, num_residual_blocks, intermediate_channels, stride):
-        layers = []
+class ViT(nn.Module):
+    def __init__(self, *, image_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0.):
+        super().__init__()
 
-        identity_downsample = nn.Sequential(nn.Conv2d(self.in_channels, intermediate_channels*self.expansion, kernel_size=1, stride=stride),
-                                            nn.BatchNorm2d(intermediate_channels*self.expansion))
-        layers.append(block(num_layers, self.in_channels, intermediate_channels, identity_downsample, stride))
-        self.in_channels = intermediate_channels * self.expansion # 256
-        for i in range(num_residual_blocks - 1):
-            layers.append(block(num_layers, self.in_channels, intermediate_channels)) # 256 -> 64, 64*4 (256) again
-        return nn.Sequential(*layers)
+        assert image_size % patch_size == 0, 'Image dimensions must be divisible by the patch size.'
 
-def ResNet18(img_channels=3, num_classes=1000):
-    return ResNet(18, Block, img_channels, num_classes)
+        num_patches = (image_size // patch_size) ** 2
+        patch_dim = channels * patch_size ** 2
+        assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
+        self.to_patch_embedding = nn.Sequential(
+            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_size, p2 = patch_size),
+            nn.Linear(patch_dim, dim),
+        )
 
-def ResNet34(img_channels=3, num_classes=1000):
-    return ResNet(34, Block, img_channels, num_classes)
+        self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
+        self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
+        self.dropout = nn.Dropout(emb_dropout)
 
+        self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout)
 
-def ResNet50(img_channels=3, num_classes=1000):
-    return ResNet(50, Block, img_channels, num_classes)
+        self.pool = pool
+        self.to_latent = nn.Identity()
 
+        self.mlp_head = nn.Sequential(
+            nn.LayerNorm(dim),
+            nn.Linear(dim, num_classes)
+        )
 
-def ResNet101(img_channels=3, num_classes=1000):
-    return ResNet(101, Block, img_channels, num_classes)
+    def forward(self, img):
+        x = self.to_patch_embedding(img)
+        b, n, _ = x.shape
 
+        cls_tokens = repeat(self.cls_token, '1 1 d -> b 1 d', b = b)
+        x = torch.cat((cls_tokens, x), dim=1)
+        x += self.pos_embedding[:, :(n + 1)]
+        x = self.dropout(x)
 
-def ResNet152(img_channels=3, num_classes=1000):
-    return ResNet(152, Block, img_channels, num_classes)
+        x = self.transformer(x)
+
+        x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
+
+        x = self.to_latent(x)
+        return self.mlp_head(x)
 
 
 class Trainer(object):
@@ -373,8 +294,8 @@ class Trainer(object):
         self.config = config
         self.dataloader = dataloader
         self.model = model
-        if self.config['mps']:
-            self.model.to('mps')
+        if self.config['cuda']:
+            self.model.to('cuda')
         self.criterion = getattr(nn, config["train"]["criterion"])()
         self.optimizer = getattr(optim, config["train"]["optimizer"])(
             self.model.parameters(),
@@ -460,14 +381,14 @@ CONFIG = {
     "data_root": "./hw4/dataset",
     "dataset_name": "CIFAR-10",  # CIFAR-10 or CIFAR-100
     "train_val_split": 0.8,
-    "mps": torch.backends.mps.is_available(),
+    "cuda": torch.cuda.is_available(),
     "train": {
-        "batch_size": 128,
-        "epoch": 100,
+        "batch_size": 256,
+        "epoch": 200,
         "shuffle": True,
         "criterion": "CrossEntropyLoss",
         "optimizer": "Adam",
-        "learning_rate": 0.001,
+        "learning_rate": 0.0001,
         "l2_coeff": 0.001,
     },
     "validation": {
@@ -477,8 +398,8 @@ CONFIG = {
     "test": {
         "shuffle": True,
     },
-    "log_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "log/ResNet50"),
-    "save_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "save/ResNet50"),
+    "log_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "log/ViT"),
+    "save_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "save/ViT"),
 }
 
 
@@ -486,9 +407,16 @@ def main(a):
     # Generate GT data
     dataloader = CIFARDataLoader(CONFIG)
 
-    # Create a MLP model
-    # model = ResNet(ResidualBlock, [2, 2, 2])
-    model = ResNet50(num_classes=10)
+    # Create a ViT model
+    model = ViT(image_size = 32,
+                patch_size = 4,
+                num_classes = 10,
+                dim = 512,
+                depth = 6,
+                heads = 8,
+                mlp_dim = 512,
+                dropout = 0.1,
+                emb_dropout = 0.1)
 
     # Prepare trainer
     trainer = Trainer(CONFIG, dataloader, model)
