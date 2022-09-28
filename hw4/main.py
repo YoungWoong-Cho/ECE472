@@ -32,6 +32,22 @@ def accuracy(output, target):
         correct += torch.sum(pred == target).item()
     return correct / len(target)
 
+def top_k_accuracy(output, target):
+    output = output.cpu().detach().numpy()
+    target = target.cpu().detach().numpy()
+    top1 = 0.0
+    top5 = 0.0
+    for idx, label in enumerate(target):
+        class_prob = output[idx]
+        top_values = (-class_prob).argsort()[:5]
+        if top_values[0] == label:
+            top1 += 1.0
+        if np.isin(np.array([label]), top_values):
+            top5 += 1.0
+    top1 = top1 / len(target)
+    top5 = top5 / len(target)
+    return {'top1': top1, 'top5': top5}
+
 
 class CIFARDataset(Dataset):
     """
@@ -100,6 +116,10 @@ class CIFARDataset(Dataset):
 
         label = torch.Tensor(self.label)[idx].type(torch.LongTensor)
 
+        if self.config['mps']:
+            image = image.to('mps')
+            label = label.to('mps')
+
         sample = {"image": image, "label": label}
         return sample
 
@@ -150,233 +170,198 @@ class CIFARDataLoader:
         return self._test_dataloader
 
 
-# class BasicBlock(nn.Module):
-#     expansion = 1
+# # 3x3 convolution
+# def conv3x3(in_channels, out_channels, stride=1):
+#     return nn.Conv2d(
+#         in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False
+#     )
 
-#     def __init__(self, in_planes, planes, stride=1):
-#         super(BasicBlock, self).__init__()
-#         self.conv1 = nn.Conv2d(
-#             in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False
-#         )
-#         self.bn1 = nn.BatchNorm2d(planes)
-#         self.conv2 = nn.Conv2d(
-#             planes, planes, kernel_size=3, stride=1, padding=1, bias=False
-#         )
-#         self.bn2 = nn.BatchNorm2d(planes)
 
-#         self.shortcut = nn.Sequential()
-#         if stride != 1 or in_planes != self.expansion * planes:
-#             self.shortcut = nn.Sequential(
-#                 nn.Conv2d(
-#                     in_planes,
-#                     self.expansion * planes,
-#                     kernel_size=1,
-#                     stride=stride,
-#                     bias=False,
-#                 ),
-#                 nn.BatchNorm2d(self.expansion * planes),
-#             )
+# # Residual block
+# class ResidualBlock(nn.Module):
+#     def __init__(self, in_channels, out_channels, stride=1, downsample=None):
+#         super(ResidualBlock, self).__init__()
+#         self.conv1 = conv3x3(in_channels, out_channels, stride)
+#         self.bn1 = nn.BatchNorm2d(out_channels)
+#         self.relu = nn.ReLU(inplace=True)
+#         self.conv2 = conv3x3(out_channels, out_channels)
+#         self.bn2 = nn.BatchNorm2d(out_channels)
+#         self.downsample = downsample
 
 #     def forward(self, x):
-#         out = F.relu(self.bn1(self.conv1(x)))
-#         out = self.bn2(self.conv2(out))
-#         out += self.shortcut(x)
-#         out = F.relu(out)
+#         residual = x
+#         out = self.conv1(x)
+#         out = self.bn1(out)
+#         out = self.relu(out)
+#         out = self.conv2(out)
+#         out = self.bn2(out)
+#         if self.downsample:
+#             residual = self.downsample(x)
+#         out += residual
+#         out = self.relu(out)
 #         return out
 
 
-# class Bottleneck(nn.Module):
-#     expansion = 4
-
-#     def __init__(self, in_planes, planes, stride=1):
-#         super(Bottleneck, self).__init__()
-#         self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=1, bias=False)
-#         self.bn1 = nn.BatchNorm2d(planes)
-#         self.conv2 = nn.Conv2d(
-#             planes, planes, kernel_size=3, stride=stride, padding=1, bias=False
-#         )
-#         self.bn2 = nn.BatchNorm2d(planes)
-#         self.conv3 = nn.Conv2d(
-#             planes, self.expansion * planes, kernel_size=1, bias=False
-#         )
-#         self.bn3 = nn.BatchNorm2d(self.expansion * planes)
-
-#         self.shortcut = nn.Sequential()
-#         if stride != 1 or in_planes != self.expansion * planes:
-#             self.shortcut = nn.Sequential(
-#                 nn.Conv2d(
-#                     in_planes,
-#                     self.expansion * planes,
-#                     kernel_size=1,
-#                     stride=stride,
-#                     bias=False,
-#                 ),
-#                 nn.BatchNorm2d(self.expansion * planes),
-#             )
-
-#     def forward(self, x):
-#         out = F.relu(self.bn1(self.conv1(x)))
-#         out = F.relu(self.bn2(self.conv2(out)))
-#         out = self.bn3(self.conv3(out))
-#         out += self.shortcut(x)
-#         out = F.relu(out)
-#         return out
-
-
+# # ResNet
 # class ResNet(nn.Module):
-#     def __init__(self, block, num_blocks, num_classes=10):
+#     def __init__(self, block, layers, num_classes=10):
 #         super(ResNet, self).__init__()
-#         self.in_planes = 64
+#         self.in_channels = 16
+#         self.conv = conv3x3(3, 16)
+#         self.bn = nn.BatchNorm2d(16)
+#         self.relu = nn.ReLU(inplace=True)
+#         self.layer1 = self.make_layer(block, 16, layers[0])
+#         self.layer2 = self.make_layer(block, 32, layers[1], 2)
+#         self.layer3 = self.make_layer(block, 64, layers[2], 2)
+#         self.avg_pool = nn.AvgPool2d(8)
+#         self.fc = nn.Linear(64, num_classes)
 
-#         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
-#         self.bn1 = nn.BatchNorm2d(64)
-#         self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
-#         self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
-#         self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
-#         self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
-#         self.linear = nn.Linear(512 * block.expansion, num_classes)
-
-#     def _make_layer(self, block, planes, num_blocks, stride):
-#         strides = [stride] + [1] * (num_blocks - 1)
+#     def make_layer(self, block, out_channels, blocks, stride=1):
+#         downsample = None
+#         if (stride != 1) or (self.in_channels != out_channels):
+#             downsample = nn.Sequential(
+#                 conv3x3(self.in_channels, out_channels, stride=stride),
+#                 nn.BatchNorm2d(out_channels),
+#             )
 #         layers = []
-#         for stride in strides:
-#             layers.append(block(self.in_planes, planes, stride))
-#             self.in_planes = planes * block.expansion
+#         layers.append(block(self.in_channels, out_channels, stride, downsample))
+#         self.in_channels = out_channels
+#         for i in range(1, blocks):
+#             layers.append(block(out_channels, out_channels))
 #         return nn.Sequential(*layers)
 
 #     def forward(self, x):
-#         out = F.relu(self.bn1(self.conv1(x)))
+#         out = self.conv(x)
+#         out = self.bn(out)
+#         out = self.relu(out)
 #         out = self.layer1(out)
 #         out = self.layer2(out)
 #         out = self.layer3(out)
-#         out = self.layer4(out)
-#         out = F.avg_pool2d(out, 4)
+#         out = self.avg_pool(out)
 #         out = out.view(out.size(0), -1)
-#         out = self.linear(out)
+#         out = self.fc(out)
 #         return out
 
 
-# def ResNet18():
-#     return ResNet(BasicBlock, [2, 2, 2, 2])
-
-
-# def ResNet34():
-#     return ResNet(BasicBlock, [3, 4, 6, 3])
-
-
-# def ResNet50():
-#     return ResNet(Bottleneck, [3, 4, 6, 3])
-
-
-# def ResNet101():
-#     return ResNet(Bottleneck, [3, 4, 23, 3])
-
-
-# def ResNet152():
-#     return ResNet(Bottleneck, [3, 8, 36, 3])
-
-
-# 3x3 convolution
-def conv3x3(in_channels, out_channels, stride=1):
-    return nn.Conv2d(
-        in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False
-    )
-
-
-# Residual block
-class ResidualBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, stride=1, downsample=None):
-        super(ResidualBlock, self).__init__()
-        self.conv1 = conv3x3(in_channels, out_channels, stride)
+class Block(nn.Module):
+    def __init__(self, num_layers, in_channels, out_channels, identity_downsample=None, stride=1):
+        assert num_layers in [18, 34, 50, 101, 152], "should be a a valid architecture"
+        super(Block, self).__init__()
+        self.num_layers = num_layers
+        if self.num_layers > 34:
+            self.expansion = 4
+        else:
+            self.expansion = 1
+        # ResNet50, 101, and 152 include additional layer of 1x1 kernels
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
         self.bn1 = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU(inplace=True)
-        self.conv2 = conv3x3(out_channels, out_channels)
+        if self.num_layers > 34:
+            self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=stride, padding=1)
+        else:
+            # for ResNet18 and 34, connect input directly to (3x3) kernel (skip first (1x1))
+            self.conv2 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1)
         self.bn2 = nn.BatchNorm2d(out_channels)
-        self.downsample = downsample
+        self.conv3 = nn.Conv2d(out_channels, out_channels * self.expansion, kernel_size=1, stride=1, padding=0)
+        self.bn3 = nn.BatchNorm2d(out_channels * self.expansion)
+        self.relu = nn.ReLU()
+        self.identity_downsample = identity_downsample
 
     def forward(self, x):
-        residual = x
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-        out = self.conv2(out)
-        out = self.bn2(out)
-        if self.downsample:
-            residual = self.downsample(x)
-        out += residual
-        out = self.relu(out)
-        return out
+        identity = x
+        if self.num_layers > 34:
+            x = self.conv1(x)
+            x = self.bn1(x)
+            x = self.relu(x)
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.relu(x)
+        x = self.conv3(x)
+        x = self.bn3(x)
 
+        if self.identity_downsample is not None:
+            identity = self.identity_downsample(identity)
 
-# ResNet
+        x += identity
+        x = self.relu(x)
+        return x
+
 class ResNet(nn.Module):
-    def __init__(self, block, layers, num_classes=10):
+    def __init__(self, num_layers, block, image_channels, num_classes):
+        assert num_layers in [18, 34, 50, 101, 152], f'ResNet{num_layers}: Unknown architecture! Number of layers has ' \
+                                                     f'to be 18, 34, 50, 101, or 152 '
         super(ResNet, self).__init__()
-        self.in_channels = 16
-        self.conv = conv3x3(3, 16)
-        self.bn = nn.BatchNorm2d(16)
-        self.relu = nn.ReLU(inplace=True)
-        self.layer1 = self.make_layer(block, 16, layers[0])
-        self.layer2 = self.make_layer(block, 32, layers[1], 2)
-        self.layer3 = self.make_layer(block, 64, layers[2], 2)
-        self.avg_pool = nn.AvgPool2d(8)
-        self.fc = nn.Linear(64, num_classes)
+        if num_layers < 50:
+            self.expansion = 1
+        else:
+            self.expansion = 4
+        if num_layers == 18:
+            layers = [2, 2, 2, 2]
+        elif num_layers == 34 or num_layers == 50:
+            layers = [3, 4, 6, 3]
+        elif num_layers == 101:
+            layers = [3, 4, 23, 3]
+        else:
+            layers = [3, 8, 36, 3]
+        self.in_channels = 64
+        self.conv1 = nn.Conv2d(image_channels, 64, kernel_size=7, stride=2, padding=3)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU()
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
-    def make_layer(self, block, out_channels, blocks, stride=1):
-        downsample = None
-        if (stride != 1) or (self.in_channels != out_channels):
-            downsample = nn.Sequential(
-                conv3x3(self.in_channels, out_channels, stride=stride),
-                nn.BatchNorm2d(out_channels),
-            )
+        # ResNetLayers
+        self.layer1 = self.make_layers(num_layers, block, layers[0], intermediate_channels=64, stride=1)
+        self.layer2 = self.make_layers(num_layers, block, layers[1], intermediate_channels=128, stride=2)
+        self.layer3 = self.make_layers(num_layers, block, layers[2], intermediate_channels=256, stride=2)
+        self.layer4 = self.make_layers(num_layers, block, layers[3], intermediate_channels=512, stride=2)
+
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(512 * self.expansion, num_classes)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+
+        x = self.avgpool(x)
+        x = x.reshape(x.shape[0], -1)
+        x = self.fc(x)
+        return x
+
+    def make_layers(self, num_layers, block, num_residual_blocks, intermediate_channels, stride):
         layers = []
-        layers.append(block(self.in_channels, out_channels, stride, downsample))
-        self.in_channels = out_channels
-        for i in range(1, blocks):
-            layers.append(block(out_channels, out_channels))
+
+        identity_downsample = nn.Sequential(nn.Conv2d(self.in_channels, intermediate_channels*self.expansion, kernel_size=1, stride=stride),
+                                            nn.BatchNorm2d(intermediate_channels*self.expansion))
+        layers.append(block(num_layers, self.in_channels, intermediate_channels, identity_downsample, stride))
+        self.in_channels = intermediate_channels * self.expansion # 256
+        for i in range(num_residual_blocks - 1):
+            layers.append(block(num_layers, self.in_channels, intermediate_channels)) # 256 -> 64, 64*4 (256) again
         return nn.Sequential(*layers)
 
-    def forward(self, x):
-        out = self.conv(x)
-        out = self.bn(out)
-        out = self.relu(out)
-        out = self.layer1(out)
-        out = self.layer2(out)
-        out = self.layer3(out)
-        out = self.avg_pool(out)
-        out = out.view(out.size(0), -1)
-        out = self.fc(out)
-        return out
+def ResNet18(img_channels=3, num_classes=1000):
+    return ResNet(18, Block, img_channels, num_classes)
 
 
-class CIFARModel(nn.Module):
-    """
-    CIFAR CNN model for image classification
-    """
+def ResNet34(img_channels=3, num_classes=1000):
+    return ResNet(34, Block, img_channels, num_classes)
 
-    def __init__(self):
-        super().__init__()
-        self.conv1 = nn.Conv2d(3, 16, kernel_size=5)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=5)
 
-        self.conv_drop = nn.Dropout2d(0.25)
-        self.dropout = nn.Dropout(0.25)
+def ResNet50(img_channels=3, num_classes=1000):
+    return ResNet(50, Block, img_channels, num_classes)
 
-        self.fc1 = nn.Linear(32 * 32 * 5 * 5, 128)
-        self.fc2 = nn.Linear(128, 10)
 
-        self.maxpool = nn.MaxPool2d(kernel_size=2)
-        self.relu = nn.ReLU()
-        self.log_softmax = nn.LogSoftmax(dim=1)
+def ResNet101(img_channels=3, num_classes=1000):
+    return ResNet(101, Block, img_channels, num_classes)
 
-    def forward(self, x):
-        x = self.relu(self.maxpool(self.conv1(x)))
-        x = self.relu(self.maxpool(self.conv2(x)))
-        x = x.view(-1, 32 * 32 * 5 * 5)
-        x = self.relu(self.fc1(x))
-        x = self.dropout(x)
-        x = self.log_softmax(self.fc2(x))
-        return x
+
+def ResNet152(img_channels=3, num_classes=1000):
+    return ResNet(152, Block, img_channels, num_classes)
 
 
 class Trainer(object):
@@ -388,54 +373,60 @@ class Trainer(object):
         self.config = config
         self.dataloader = dataloader
         self.model = model
+        if self.config['mps']:
+            self.model.to('mps')
         self.criterion = getattr(nn, config["train"]["criterion"])()
         self.optimizer = getattr(optim, config["train"]["optimizer"])(
             self.model.parameters(),
             lr=config["train"]["learning_rate"],
             weight_decay=config["train"]["l2_coeff"],
         )
-        # Weight decay is not the same as L2 regularization for Adam.
-        # However pytorch implementation of L2 regularization of Adam
-        # is done via weight_decay parameter.
-        # See https://pytorch.org/docs/stable/generated/torch.optim.Adam.html
-        # https://stackoverflow.com/questions/42704283/l1-l2-regularization-in-pytorch
 
         self.writer = SummaryWriter(config["log_dir"])
 
     def train(self):
         self.model.train()
-        bar = trange(self.config["train"]["epoch"])
-        val_accuracy = 0.0
-        for i in bar:
-            train_data = next(iter(self.dataloader.train_dataloader))
-            image = train_data["image"]
-            label = train_data["label"]
+        val_accuracy = {'top1': 0.0, 'top5': 0.0}
+        global_i = 0
+        for epoch in range(self.config['train']['epoch']):
+            bar = trange(len(self.dataloader.train_dataloader))
+            for _ in bar:
+                train_data = next(iter(self.dataloader.train_dataloader))
+                image = train_data["image"]
+                label = train_data["label"]
 
-            self.optimizer.zero_grad()
-            output = self.model(image)
-            loss = self.criterion(output, label)
-            loss.backward()
-            self.optimizer.step()
+                self.optimizer.zero_grad()
+                output = self.model(image)
+                loss = self.criterion(output, label)
+                loss.backward()
+                self.optimizer.step()
 
-            bar.set_description(
-                f"Loss @ {i} => {loss.detach().numpy():0.6f} Val accuracy @ {i} => {val_accuracy:0.6f}"
-            )
-            bar.refresh()
-
-            # Run accuracy on validation set
-            if i % 50 == 0:
-                val_accuracy = self.validate()
-
-                self.writer.add_scalar(
-                    "Cross Entropy Loss",
-                    loss.detach().numpy(),
-                    i,
+                bar.set_description(
+                    f"Epoch: {epoch} [Loss: {loss.cpu().detach().numpy():0.6f}] [Top1: {val_accuracy['top1']:0.6f}] [Top5: {val_accuracy['top5']:0.6f}]"
                 )
-                self.writer.add_scalar(
-                    "Validation accuracy",
-                    val_accuracy,
-                    i,
-                )
+                bar.refresh()
+
+                # Run accuracy on validation set
+                if global_i % 50 == 0:
+                    val_accuracy = self.validate()
+
+                    self.writer.add_scalar(
+                        "Cross Entropy Loss",
+                        loss.cpu().detach().numpy(),
+                        global_i,
+                    )
+                    self.writer.add_scalar(
+                        "Top 1 accuracy",
+                        val_accuracy['top1'],
+                        global_i,
+                    )
+                    self.writer.add_scalar(
+                        "Top 5 accuracy",
+                        val_accuracy["top5"],
+                        global_i,
+                    )
+
+                global_i += 1
 
         test_accuracy = self.test()
         print(test_accuracy)
@@ -448,7 +439,7 @@ class Trainer(object):
         label = validate_data["label"]
 
         output = self.model(image)
-        metric = accuracy(output, label)
+        metric = top_k_accuracy(output, label)
         return metric
 
     def test(self):
@@ -458,7 +449,7 @@ class Trainer(object):
         label = test_data["label"]
 
         output = self.model(image)
-        metric = accuracy(output, label)
+        metric = top_k_accuracy(output, label)
         return metric
 
     def save_model(self):
@@ -469,9 +460,10 @@ CONFIG = {
     "data_root": "./hw4/dataset",
     "dataset_name": "CIFAR-10",  # CIFAR-10 or CIFAR-100
     "train_val_split": 0.8,
+    "mps": torch.backends.mps.is_available(),
     "train": {
         "batch_size": 128,
-        "epoch": 1000,
+        "epoch": 100,
         "shuffle": True,
         "criterion": "CrossEntropyLoss",
         "optimizer": "Adam",
@@ -485,8 +477,8 @@ CONFIG = {
     "test": {
         "shuffle": True,
     },
-    "log_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "log"),
-    "save_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "save"),
+    "log_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "log/ResNet50"),
+    "save_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "save/ResNet50"),
 }
 
 
@@ -495,7 +487,8 @@ def main(a):
     dataloader = CIFARDataLoader(CONFIG)
 
     # Create a MLP model
-    model = ResNet(ResidualBlock, [2, 2, 2])
+    # model = ResNet(ResidualBlock, [2, 2, 2])
+    model = ResNet50(num_classes=10)
 
     # Prepare trainer
     trainer = Trainer(CONFIG, dataloader, model)
