@@ -19,7 +19,7 @@ from pdb import set_trace as bp
 
 CONFIG = {
     "data_root": "./hw4/dataset",
-    "dataset_name": "CIFAR-10",  # CIFAR-10 or CIFAR-100
+    "dataset_name": "CIFAR-100",  # CIFAR-10 or CIFAR-100
     "train_val_split": 0.8,
     "cuda": torch.cuda.is_available(),
     "train": {
@@ -50,7 +50,7 @@ def main(a):
     # Create a ViT model
     model = ViT(image_size = 32,
                 patch_size = 4,
-                num_classes = 10,
+                num_classes = 10 if CONFIG['dataset_name'] == 'CIFAR-10' else 100,
                 dim = 512,
                 depth = 6,
                 heads = 16,
