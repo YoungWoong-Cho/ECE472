@@ -24,9 +24,11 @@ class Trainer(object):
         self.optimizer = getattr(optim, config["train"]["optimizer"])(
             self.model.parameters(),
             lr=config["train"]["learning_rate"],
+            momentum=config['train']['momentum'],
             weight_decay=config["train"]["l2_coeff"],
         )
-        self.scheduler = StepLR(self.optimizer, step_size=1, gamma=self.config['train']['gamma'])
+        # self.scheduler = getattr(torch.optim.lr_scheduler, config["train"]["scheduler"])(self.optimizer, step_size=1, gamma=self.config['train']['gamma'])
+        self.scheduler = getattr(torch.optim.lr_scheduler, config["train"]["scheduler"])(self.optimizer, milestones=self.config['train']['milestones'], gamma=self.config['train']['gamma'])
 
         self.writer = SummaryWriter(f'{config["log_dir"]}/{model.__class__.__name__}')
 
@@ -72,11 +74,16 @@ class Trainer(object):
                         global_i,
                     )
 
+                    if val_accuracy["top5"] > 0.9:
+                        from pdb import set_trace as bp
+                        bp()
+
                 global_i += 1
 
-        test_accuracy = self.test()
-        print(test_accuracy)
         self.save_model()
+        # test_accuracy = self.test()
+        # print(test_accuracy)
+        # self.save_model()
 
     def validate(self):
         self.model.eval()
@@ -99,4 +106,4 @@ class Trainer(object):
         return metric
 
     def save_model(self):
-        torch.save(self.model.state_dict(), self.config["save_dir"])
+        torch.save(self.model.state_dict(), f'{self.config["save_dir"]}/{self.model.__class__.__name__}.pth')

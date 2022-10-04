@@ -17,18 +17,19 @@ class CIFARDataset(Dataset):
         self.data_root = config["data_root"]
         self.dataset_type = dataset_type
         self.image, self.label = self._parse_data()
+
         if self.dataset_type == 'train':
             self.transforms = transforms.Compose([
                 transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261)),
+                transforms.Normalize([0.50707516, 0.48654887, 0.44091784], [0.26733429, 0.25643846, 0.27615047]),
                 transforms.RandomHorizontalFlip(),
-                transforms.RandomVerticalFlip(),
+                # transforms.RandomVerticalFlip(),
                 transforms.RandomCrop(size=[32, 32], padding=4),
             ])
         else:
             self.transforms = transforms.Compose([
                 transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261)),
+                transforms.Normalize([0.50707516, 0.48654887, 0.44091784], [0.26733429, 0.25643846, 0.27615047]),
             ])
 
     def _parse_data(self):
@@ -64,7 +65,7 @@ class CIFARDataset(Dataset):
             with open(fpath, "rb") as f:
                 data = pickle.load(f, encoding="bytes")
             images = data[b"data"].reshape(-1, 3, 32, 32)
-            image = np.transpose(image, (0, 2, 3, 1))
+            images = np.transpose(images, (0, 2, 3, 1))
             labels = data[b"fine_labels"]
         else:
             raise Exception("dataset_name not understood.")
@@ -98,9 +99,9 @@ class CIFARDataLoader:
         self.test_dataset = CIFARDataset(config, "test")
 
         train_size = int(config["train_val_split"] * len(self.train_dataset))
-        test_size = len(self.train_dataset) - train_size
+        val_size = len(self.train_dataset) - train_size
         self.train_dataset, self.val_dataset = torch.utils.data.random_split(
-            self.train_dataset, [train_size, test_size]
+            self.train_dataset, [train_size, val_size]
         )
 
         self._train_dataloader = DataLoader(

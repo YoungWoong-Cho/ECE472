@@ -9,10 +9,11 @@ import os
 import torch
 
 from dataset import CIFARDataLoader
-from model.ViT import ViT
-from model.resnet import ResNet50, ResNet101
-from model.dla import DLA
-from model.dpn import DPN26, DPN92
+# from model.ViT import ViT
+# from model.resnet import ResNet50, ResNet101
+# from model.dla import DLA
+from model.dpn import DPN26
+from model.seresnet import seresnet34
 from trainer import Trainer
 
 from absl import app
@@ -21,7 +22,7 @@ from pdb import set_trace as bp
 
 CONFIG = {
     "data_root": "./hw4/dataset",
-    "dataset_name": "CIFAR-10",  # CIFAR-10 or CIFAR-100
+    "dataset_name": "CIFAR-100",  # CIFAR-10 or CIFAR-100
     "train_val_split": 0.8,
     "cuda": torch.cuda.is_available(),
     "train": {
@@ -29,10 +30,14 @@ CONFIG = {
         "epoch": 200,
         "shuffle": True,
         "criterion": "CrossEntropyLoss",
-        "optimizer": "Adam",
-        "learning_rate": 0.0001,
-        "l2_coeff": 0.0,
-        'gamma': 0.7    
+        "optimizer": "SGD",
+        "learning_rate": float(1e-1),
+        'warm': 1,
+        "l2_coeff": float(5e-4),
+        'scheduler': "MultiStepLR",
+        'milestones': [60, 120, 160],
+        'gamma': 0.2,
+        'momentum': 0.9
     },
     "validation": {
         "batch_size": 128,
@@ -46,22 +51,16 @@ CONFIG = {
 }
 
 def main(a):
+    if not os.path.exists(CONFIG['log_dir']):
+        os.mkdir(CONFIG['log_dir'])
+    if not os.path.exists(CONFIG['save_dir']):
+        os.mkdir(CONFIG['save_dir'])
+    
     # Generate GT data
     dataloader = CIFARDataLoader(CONFIG)
 
-    # Create a ViT model
-    # model = ViT(image_size = 32,
-    #             patch_size = 4,
-    #             num_classes = 10,
-    #             dim = 1024,
-    #             depth = 6,
-    #             heads = 16,
-    #             mlp_dim = 1024,
-    #             dropout = 0.1,
-    #             emb_dropout = 0.1)
-    # model = ResNet101()
-    # model = DLA()
-    model = DPN26()
+    # Create model
+    model = seresnet34()
 
     # Prepare trainer
     trainer = Trainer(CONFIG, dataloader, model)
