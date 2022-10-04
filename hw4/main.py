@@ -10,7 +10,9 @@ import torch
 
 from dataset import CIFARDataLoader
 from model.ViT import ViT
-from model.resnet import ResNet50
+from model.resnet import ResNet50, ResNet101
+from model.dla import DLA
+from model.dpn import DPN26, DPN92
 from trainer import Trainer
 
 from absl import app
@@ -19,7 +21,7 @@ from pdb import set_trace as bp
 
 CONFIG = {
     "data_root": "./hw4/dataset",
-    "dataset_name": "CIFAR-100",  # CIFAR-10 or CIFAR-100
+    "dataset_name": "CIFAR-10",  # CIFAR-10 or CIFAR-100
     "train_val_split": 0.8,
     "cuda": torch.cuda.is_available(),
     "train": {
@@ -28,7 +30,7 @@ CONFIG = {
         "shuffle": True,
         "criterion": "CrossEntropyLoss",
         "optimizer": "Adam",
-        "learning_rate": int(3e-5),
+        "learning_rate": 0.0001,
         "l2_coeff": 0.0,
         'gamma': 0.7    
     },
@@ -39,8 +41,8 @@ CONFIG = {
     "test": {
         "shuffle": True,
     },
-    "log_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "log/ViT"),
-    "save_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "save/ViT"),
+    "log_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "log"),
+    "save_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "save"),
 }
 
 def main(a):
@@ -48,16 +50,18 @@ def main(a):
     dataloader = CIFARDataLoader(CONFIG)
 
     # Create a ViT model
-    model = ViT(image_size = 32,
-                patch_size = 4,
-                num_classes = 10 if CONFIG['dataset_name'] == 'CIFAR-10' else 100,
-                dim = 512,
-                depth = 6,
-                heads = 16,
-                mlp_dim = 512,
-                dropout = 0.1,
-                emb_dropout = 0.1)
-    # model = ResNet50()
+    # model = ViT(image_size = 32,
+    #             patch_size = 4,
+    #             num_classes = 10,
+    #             dim = 1024,
+    #             depth = 6,
+    #             heads = 16,
+    #             mlp_dim = 1024,
+    #             dropout = 0.1,
+    #             emb_dropout = 0.1)
+    # model = ResNet101()
+    # model = DLA()
+    model = DPN26()
 
     # Prepare trainer
     trainer = Trainer(CONFIG, dataloader, model)

@@ -28,7 +28,7 @@ class Trainer(object):
         )
         self.scheduler = StepLR(self.optimizer, step_size=1, gamma=self.config['train']['gamma'])
 
-        self.writer = SummaryWriter(config["log_dir"])
+        self.writer = SummaryWriter(f'{config["log_dir"]}/{model.__class__.__name__}')
 
     def train(self):
         self.model.train()
