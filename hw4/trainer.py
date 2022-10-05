@@ -27,7 +27,6 @@ class Trainer(object):
             momentum=config['train']['momentum'],
             weight_decay=config["train"]["l2_coeff"],
         )
-        # self.scheduler = getattr(torch.optim.lr_scheduler, config["train"]["scheduler"])(self.optimizer, step_size=1, gamma=self.config['train']['gamma'])
         self.scheduler = getattr(torch.optim.lr_scheduler, config["train"]["scheduler"])(self.optimizer, milestones=self.config['train']['milestones'], gamma=self.config['train']['gamma'])
 
         self.writer = SummaryWriter(f'{config["log_dir"]}/{model.__class__.__name__}')
@@ -39,9 +38,11 @@ class Trainer(object):
         for epoch in range(self.config['train']['epoch']):
             bar = trange(len(self.dataloader.train_dataloader))
             for _ in bar:
-                train_data = next(iter(self.dataloader.train_dataloader))
-                image = train_data["image"]
-                label = train_data["label"]
+                image, label = next(iter(self.dataloader.train_dataloader))
+                if self.config['cuda']:
+                    image = image.to('cuda')
+                    label = label.to('cuda')
+
 
                 self.optimizer.zero_grad()
                 output = self.model(image)
@@ -55,8 +56,8 @@ class Trainer(object):
                 bar.refresh()
 
                 # Run accuracy on validation set
-                if global_i % 50 == 0:
-                    val_accuracy = self.validate()
+                if global_i % 200 == 0:
+                    val_accuracy = self.test()
 
                     self.writer.add_scalar(
                         "loss/Cross Entropy Loss",
@@ -74,32 +75,17 @@ class Trainer(object):
                         global_i,
                     )
 
-                    if val_accuracy["top5"] > 0.9:
-                        from pdb import set_trace as bp
-                        bp()
-
                 global_i += 1
 
         self.save_model()
-        # test_accuracy = self.test()
-        # print(test_accuracy)
-        # self.save_model()
-
-    def validate(self):
-        self.model.eval()
-        validate_data = next(iter(self.dataloader.val_dataloader))
-        image = validate_data["image"]
-        label = validate_data["label"]
-
-        output = self.model(image)
-        metric = top_k_accuracy(output, label)
-        return metric
 
     def test(self):
         self.model.eval()
         test_data = next(iter(self.dataloader.test_dataloader))
-        image = test_data["image"]
-        label = test_data["label"]
+        image, label = test_data
+        if self.config['cuda']:
+            image = image.to('cuda')
+            label = label.to('cuda')
 
         output = self.model(image)
         metric = top_k_accuracy(output, label)

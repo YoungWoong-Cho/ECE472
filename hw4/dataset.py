@@ -1,17 +1,13 @@
 import pickle
 import numpy as np
 import torch
+import torchvision
 
 from torchvision import datasets, transforms
 from torch.utils.data import Dataset, DataLoader
 
 
 class CIFARDataset(Dataset):
-    """
-    MNIST dataset for train dataset
-    https://www.kaggle.com/datasets/oddrationale/mnist-in-csv?select=mnist_test.csv
-    """
-
     def __init__(self, config, dataset_type="train"):
         self.config = config
         self.data_root = config["data_root"]
@@ -88,46 +84,86 @@ class CIFARDataset(Dataset):
 
 
 class CIFARDataLoader:
-    """
-    MNIST dataset for train dataset
-    """
+    # def __init__(self, config):
+    #     self.data_root = config["data_root"]
+
+    #     self.train_dataset = CIFARDataset(config, "train")
+    #     self.test_dataset = CIFARDataset(config, "test")
+
+    #     train_size = int(config["train_val_split"] * len(self.train_dataset))
+    #     val_size = len(self.train_dataset) - train_size
+    #     self.train_dataset, self.val_dataset = torch.utils.data.random_split(
+    #         self.train_dataset, [train_size, val_size]
+    #     )
+
+    #     self._train_dataloader = DataLoader(
+    #         self.train_dataset,
+    #         batch_size=config["train"]["batch_size"],
+    #         shuffle=config["train"]["shuffle"],
+    #     )
+    #     self._val_dataloader = DataLoader(
+    #         self.val_dataset,
+    #         batch_size=config["validation"]["batch_size"],
+    #         shuffle=config["validation"]["shuffle"],
+    #     )
+    #     self._test_dataloader = DataLoader(
+    #         self.test_dataset,
+    #         batch_size=len(self.test_dataset),
+    #         shuffle=config["test"]["shuffle"],
+    #     )
+
+    # @property
+    # def train_dataloader(self):
+    #     return self._train_dataloader
+
+    # @property
+    # def val_dataloader(self):
+    #     return self._val_dataloader
+
+    # @property
+    # def test_dataloader(self):
+    #     return self._test_dataloader
+
 
     def __init__(self, config):
-        self.data_root = config["data_root"]
+        if config['dataset_name'] == 'CIFAR-10':
+            transform_train = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize([0.49139968, 0.48215841, 0.44653091], [0.24703223, 0.24348513, 0.26158784]),
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomCrop(size=[32, 32], padding=4),
+            ])
+            transform_test = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize([0.49139968, 0.48215841, 0.44653091], [0.24703223, 0.24348513, 0.26158784]),
+            ])
+            trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
+                                                download=True, transform=transform_train)
+            testset = torchvision.datasets.CIFAR10(root='./data', train=False,
+                                                download=True, transform=transform_test)
+        elif config['dataset_name'] == 'CIFAR-100':
+            transform_train = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize([0.50707516, 0.48654887, 0.44091784], [0.26733429, 0.25643846, 0.27615047]),
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomCrop(size=[32, 32], padding=4),
+            ])
+            transform_test = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize([0.50707516, 0.48654887, 0.44091784], [0.26733429, 0.25643846, 0.27615047]),
+            ])
+            trainset = torchvision.datasets.CIFAR100(root='./data', train=True,
+                                                download=True, transform=transform_train)
+            testset = torchvision.datasets.CIFAR100(root='./data', train=False,
+                                                download=True, transform=transform_test)
+        else:
+            raise Exception('dataset_name not understood')
 
-        self.train_dataset = CIFARDataset(config, "train")
-        self.test_dataset = CIFARDataset(config, "test")
+        self.train_dataloader = torch.utils.data.DataLoader(trainset, batch_size=config["train"]["batch_size"],
+                                                shuffle=True, num_workers=2)
 
-        train_size = int(config["train_val_split"] * len(self.train_dataset))
-        val_size = len(self.train_dataset) - train_size
-        self.train_dataset, self.val_dataset = torch.utils.data.random_split(
-            self.train_dataset, [train_size, val_size]
-        )
+        self.test_dataloader = torch.utils.data.DataLoader(testset, batch_size=config["train"]["batch_size"],
+                                                shuffle=False, num_workers=2)
 
-        self._train_dataloader = DataLoader(
-            self.train_dataset,
-            batch_size=config["train"]["batch_size"],
-            shuffle=config["train"]["shuffle"],
-        )
-        self._val_dataloader = DataLoader(
-            self.val_dataset,
-            batch_size=config["validation"]["batch_size"],
-            shuffle=config["validation"]["shuffle"],
-        )
-        self._test_dataloader = DataLoader(
-            self.test_dataset,
-            batch_size=len(self.test_dataset),
-            shuffle=config["test"]["shuffle"],
-        )
-
-    @property
-    def train_dataloader(self):
-        return self._train_dataloader
-
-    @property
-    def val_dataloader(self):
-        return self._val_dataloader
-
-    @property
-    def test_dataloader(self):
-        return self._test_dataloader
+        self.classes = ('plane', 'car', 'bird', 'cat',
+                        'deer', 'dog', 'frog', 'horse', 'ship', 'truck')

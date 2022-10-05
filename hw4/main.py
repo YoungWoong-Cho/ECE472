@@ -12,7 +12,8 @@ from dataset import CIFARDataLoader
 # from model.ViT import ViT
 # from model.resnet import ResNet50, ResNet101
 # from model.dla import DLA
-from model.dpn import DPN26
+# from model.dpn import DPN26
+# from model.googlenet import GoogleNet
 from model.seresnet import seresnet34
 from trainer import Trainer
 
@@ -26,7 +27,7 @@ CONFIG = {
     "train_val_split": 0.8,
     "cuda": torch.cuda.is_available(),
     "train": {
-        "batch_size": 128,
+        "batch_size": 64,
         "epoch": 200,
         "shuffle": True,
         "criterion": "CrossEntropyLoss",
