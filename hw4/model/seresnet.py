@@ -1,3 +1,9 @@
+"""
+This code is inspired by the following pytorch implementation
+of Squeeze-and-Excitation Networks
+https://github.com/weiaicunzai/pytorch-cifar100/blob/master/models/senet.py
+"""
+
 import torch.nn as nn
 import torch.nn.functional as F
 

@@ -9,16 +9,10 @@ import os
 import torch
 
 from dataset import CIFARDataLoader
-# from model.ViT import ViT
-# from model.resnet import ResNet50, ResNet101
-# from model.dla import DLA
-# from model.dpn import DPN26
-# from model.googlenet import GoogleNet
 from model.seresnet import seresnet34
 from trainer import Trainer
 
 from absl import app
-from pdb import set_trace as bp
 
 
 CONFIG = {
@@ -27,18 +21,18 @@ CONFIG = {
     "train_val_split": 0.8,
     "cuda": torch.cuda.is_available(),
     "train": {
-        "batch_size": 64,
+        "batch_size": 128,
         "epoch": 200,
         "shuffle": True,
         "criterion": "CrossEntropyLoss",
         "optimizer": "SGD",
         "learning_rate": float(1e-1),
-        'warm': 1,
-        "l2_coeff": float(5e-4),
+        'momentum': 0.9,
+        "weight_decay": float(5e-4),
         'scheduler': "MultiStepLR",
         'milestones': [60, 120, 160],
         'gamma': 0.2,
-        'momentum': 0.9
+        'warm': 1,
     },
     "validation": {
         "batch_size": 128,
