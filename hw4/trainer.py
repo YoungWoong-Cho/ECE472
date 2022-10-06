@@ -9,42 +9,52 @@ from utils.metrics import *
 from utils.utils import WarmUpLR
 from tqdm import trange
 
+
 class Trainer(object):
     """
-    Trainer class for MNIST dataset classification
+    Trainer class for CIFAR dataset classification
     """
 
     def __init__(self, config, dataloader, model):
         self.config = config
         self.dataloader = dataloader
         self.model = model
-        if self.config['cuda']:
-            self.model.to('cuda')
+        if self.config["cuda"]:
+            self.model.to("cuda")
         self.criterion = getattr(nn, config["train"]["criterion"])()
         self.optimizer = getattr(optim, config["train"]["optimizer"])(
             self.model.parameters(),
             lr=config["train"]["learning_rate"],
-            # momentum=config['train']['momentum'],
+            momentum=config["train"]["momentum"],
             weight_decay=config["train"]["weight_decay"],
         )
-        self.scheduler = getattr(torch.optim.lr_scheduler, config["train"]["scheduler"])(self.optimizer, milestones=self.config['train']['milestones'], gamma=self.config['train']['gamma'])
-        # self.warmup_scheduler = WarmUpLR(self.optimizer, len(self.dataloader.train_dataloader) * self.config['train']['warm'])
+        self.scheduler = getattr(
+            torch.optim.lr_scheduler, config["train"]["scheduler"]
+        )(
+            self.optimizer,
+            milestones=self.config["train"]["milestones"],
+            gamma=self.config["train"]["gamma"],
+        )
+        self.warmup_scheduler = WarmUpLR(
+            self.optimizer,
+            len(self.dataloader.train_dataloader) * self.config["train"]["warm"],
+        )
 
         self.writer = SummaryWriter(f'{config["log_dir"]}/{model.__class__.__name__}')
 
     def train(self):
         self.model.train()
-        test_result = {'top1': 0.0, 'top5': 0.0}
+        test_result = {"top1": 0.0, "top5": 0.0}
         global_i = 0
-        for epoch in range(self.config['train']['epoch']):
-                
+        for epoch in range(self.config["train"]["epoch"]):
+
             if epoch >= 1.0:
                 self.scheduler.step()
 
             for idx, (image, label) in enumerate(self.dataloader.train_dataloader):
-                if self.config['cuda']:
-                    image = image.to('cuda')
-                    label = label.to('cuda')
+                if self.config["cuda"]:
+                    image = image.to("cuda")
+                    label = label.to("cuda")
 
                 self.optimizer.zero_grad()
                 output = self.model(image)
@@ -52,7 +62,6 @@ class Trainer(object):
                 loss.backward()
                 self.optimizer.step()
 
-                # bar.set_description(
                 print(
                     f"Epoch: {epoch} Iter: {idx}/{len(self.dataloader.train_dataloader)} [Loss: {loss.cpu().detach().numpy():0.6f}] [Top1: {test_result['top1']:0.6f}] [Top5: {test_result['top5']:0.6f}] LR:{self.optimizer.param_groups[0]['lr']}"
                 )
@@ -64,8 +73,8 @@ class Trainer(object):
                         global_i,
                     )
 
-                # if epoch < self.config['train']['warm']:
-                #     self.warmup_scheduler.step()
+                if epoch < self.config["train"]["warm"]:
+                    self.warmup_scheduler.step()
 
                 global_i += 1
 
@@ -74,7 +83,7 @@ class Trainer(object):
 
             self.writer.add_scalar(
                 "test/Top 1 accuracy",
-                test_result['top1'],
+                test_result["top1"],
                 global_i,
             )
             self.writer.add_scalar(
@@ -91,15 +100,15 @@ class Trainer(object):
         top1 = 0.0
         top5 = 0.0
         for image, label in self.dataloader.test_dataloader:
-            if self.config['cuda']:
-                image = image.to('cuda')
-                label = label.to('cuda')
-            
+            if self.config["cuda"]:
+                image = image.to("cuda")
+                label = label.to("cuda")
+
             output = self.model(image)
 
             output = output.cpu().detach().numpy()
             target = label.cpu().detach().numpy()
-            
+
             for idx, label in enumerate(target):
                 class_prob = output[idx]
                 top_values = (-class_prob).argsort()[:5]
@@ -111,7 +120,10 @@ class Trainer(object):
         top1 = top1 / len(self.dataloader.test_dataloader.dataset)
         top5 = top5 / len(self.dataloader.test_dataloader.dataset)
 
-        return {'top1': top1, 'top5': top5}
+        return {"top1": top1, "top5": top5}
 
     def save_model(self):
-        torch.save(self.model.state_dict(), f'{self.config["save_dir"]}/{self.model.__class__.__name__}.pth')
+        torch.save(
+            self.model.state_dict(),
+            f'{self.config["save_dir"]}/{self.model.__class__.__name__}.pth',
+        )
