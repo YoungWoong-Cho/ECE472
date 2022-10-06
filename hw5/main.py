@@ -37,10 +37,10 @@ def main(a):
     dataset, tokenizer = get_dataset()
 
     # Create model
-    model = BidirectionalLSTM(input_dim = len(tokenizer.word_index), output_dim=64, config=CONFIG)
+    model = BidirectionalLSTM
 
     # Prepare trainer
-    trainer = train_with_cross_validate(dataset, model, 5, CONFIG)
+    trainer = train_with_cross_validate(dataset, tokenizer, model, 5, CONFIG)
     trainer()
 
 if __name__ == "__main__":
