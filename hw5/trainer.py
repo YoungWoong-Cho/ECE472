@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 def train_with_cross_validate(dataset, tokenizer, model, folds_num, config):
-    model = model(input_dim = len(tokenizer.word_index), output_dim=64, config=config))
+    model = model(input_dim = len(tokenizer.word_index), output_dim=64, config=config)
     len_fold = int(len(dataset['X_train']) / folds_num)
     for fold in range(folds_num):
         X_train = np.vstack((dataset['X_train'][0:fold*len_fold], dataset['X_train'][(fold+1)*len_fold:]))

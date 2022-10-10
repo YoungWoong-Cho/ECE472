@@ -5,9 +5,6 @@ Homework 5
 Author: Youngwoong Cho
 The Cooper Union Class of 2023
 """
-import os
-import torch
-
 from dataset import get_dataset
 from model import BidirectionalLSTM
 from trainer import train_with_cross_validate
