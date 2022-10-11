@@ -52,4 +52,4 @@ All rights reserved to **Youngwoong Cho** (Cooper Union ME&CS '23)
 > - `midterm`
 
 # Troubleshooting
-If you havee trouble running the code, please contact <cho4@cooper.edu> or <herocho1997@gmail.com>.
+If you have trouble running the code, please contact <cho4@cooper.edu> or <herocho1997@gmail.com>.
