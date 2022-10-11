@@ -36,7 +36,7 @@ All rights reserved to **Youngwoong Cho** (Cooper Union ME&CS '23)
 > - `hw5`
 > - `midterm`
 
-2. If you have trouble running docker image, update `./Dockerfile`
+2. If you have trouble running docker image, update `./Dockerfile`.
 
 ## Run locally
 1. This project was tested with `python==3.8.0`.
@@ -52,4 +52,4 @@ All rights reserved to **Youngwoong Cho** (Cooper Union ME&CS '23)
 > - `midterm`
 
 # Troubleshooting
-If you havee trouble running the code, please contact [Youngwoong Cho](cho4@cooper.edu).
+If you havee trouble running the code, please contact <cho4@cooper.edu> or <herocho1997@gmail.com>.
