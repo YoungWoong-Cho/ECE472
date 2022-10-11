@@ -1,3 +1,4 @@
+import time
 import numpy as np
 import torch
 import torch.optim as optim
@@ -43,6 +44,7 @@ class Trainer(object):
         self.writer = SummaryWriter(f'{config["log_dir"]}/{model.__class__.__name__}')
 
     def train(self):
+        start = time.time()
         self.model.train()
         test_result = {"top1": 0.0, "top5": 0.0}
         global_i = 0
@@ -84,13 +86,16 @@ class Trainer(object):
             self.writer.add_scalar(
                 "test/Top 1 accuracy",
                 test_result["top1"],
-                global_i,
+                epoch,
             )
             self.writer.add_scalar(
                 "test/Top 5 accuracy",
                 test_result["top5"],
-                global_i,
+                epoch,
             )
+
+            print(f'Time elapsed for epoch {epoch}: {time.time() - start}')
+            start = time.time()
 
         self.save_model()
 
