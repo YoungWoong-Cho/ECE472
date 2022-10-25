@@ -215,7 +215,7 @@ class DistilledPoolingTransformer(PoolingTransformer):
 def pit_b(pretrained, **kwargs):
     model = PoolingTransformer(
         # image_size=224,
-        # patch_size=16,
+        # patch_size=16, => 14 x 14 patches
         image_size=32,
         patch_size=8,
         stride=7,

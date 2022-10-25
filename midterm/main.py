@@ -12,6 +12,7 @@ import timm
 from dataset import CIFARDataLoader
 from trainer import Trainer
 from model.PiT import pit_b
+from model.ViT import vit_small_patch8_32
 
 from absl import app
 
@@ -56,7 +57,11 @@ def main(a):
     dataloader = CIFARDataLoader(CONFIG)
 
     # Create model
-    model = timm.create_model('pit_b', pretrained=False)
+    # model = timm.create_model('pit_b', pretrained=False)
+    model = timm.create_model('vit_small_patch8_32', pretrained=True)
+    
+    # from pytorch_pretrained_vit import ViT
+    # model = ViT('B_16', pretrained=True)
 
     # Prepare trainer
     trainer = Trainer(CONFIG, dataloader, model)

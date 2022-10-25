@@ -14,7 +14,8 @@ class CIFARDataLoader:
                         [0.24703223, 0.24348513, 0.26158784],
                     ),
                     transforms.RandomHorizontalFlip(),
-                    transforms.RandomCrop(size=[32, 32], padding=4),
+                    # transforms.RandomCrop(size=[32, 32], padding=4),
+                    # transforms.Resize(224),
                 ]
             )
             transform_test = transforms.Compose(
@@ -24,6 +25,7 @@ class CIFARDataLoader:
                         [0.49139968, 0.48215841, 0.44653091],
                         [0.24703223, 0.24348513, 0.26158784],
                     ),
+                    # transforms.Resize(224),
                 ]
             )
             trainset = torchvision.datasets.CIFAR10(
@@ -40,9 +42,10 @@ class CIFARDataLoader:
                         (0.5070751592371323, 0.48654887331495095, 0.4409178433670343),
                         (0.2673342858792401, 0.2564384629170883, 0.27615047132568404),
                     ),
-                    transforms.RandomCrop(32, padding=4),
+                    # transforms.RandomCrop(32, padding=4),
                     transforms.RandomHorizontalFlip(),
                     transforms.RandomRotation(15),
+                    # transforms.Resize(224),
                 ]
             )
             transform_test = transforms.Compose(
@@ -52,6 +55,7 @@ class CIFARDataLoader:
                         (0.5070751592371323, 0.48654887331495095, 0.4409178433670343),
                         (0.2673342858792401, 0.2564384629170883, 0.27615047132568404),
                     ),
+                    # transforms.Resize(224),
                 ]
             )
             trainset = torchvision.datasets.CIFAR100(
