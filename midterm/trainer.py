@@ -109,7 +109,14 @@ class Trainer(object):
 
         train_accuracy = self.test_accuracy(self.dataloader.train_dataloader)
         val_accuracy = self.test_accuracy(self.dataloader.test_dataloader)
-        print(f'[Train acc: {train_accuracy} [Val acc: {val_accuracy}')
+        print(f'[Train acc: {train_accuracy}] [Val acc: {val_accuracy}]')
+        # ViT-B16: [Train acc: 0.39452] [Val acc: 0.3253]
+        # PiT-B16: [Train acc: 0.54568] [Val acc: 0.4244]
+
+        # PiT-S16: [Train acc: 0.4706] [Val acc: 0.3981]
+        # ViT-S16: [Train acc: 0.39894] [Val acc: 0.3327]
+
+        # PiT-
         self.save_model()
 
     def test_accuracy(self, dataloader):

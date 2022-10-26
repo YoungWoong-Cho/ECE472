@@ -21,16 +21,16 @@ CONFIG = {
     "train_val_split": 0.8,
     "cuda": torch.cuda.is_available(),
     "model": {
-        "img_size": 64,
-        "pretrained_weight": "./pretrained_weights/PiT_B_820.pth"
+        "img_size": 112,
+        "pretrained_weight": "/content/ECE472/midterm/pretrained_weights/pit_b_820.pth"
     },
     "train": {
-        "batch_size": 256,
-        "epoch": 100,
+        "batch_size": 512,
+        "epoch": 20,
         "shuffle": True,
         "criterion": "CrossEntropyLoss",
         "optimizer": "SGD",
-        "learning_rate": float(3e-2)*4,
+        "learning_rate": float(3e-2),
         "momentum": 0.9,
         # "weight_decay": float(5e-4),
         "weight_decay": 0.0,
@@ -63,14 +63,20 @@ def main(a):
     dataloader = CIFARDataLoader(CONFIG)
 
     # Create model    
-    model = PiT(img_size=CONFIG['model']['img_size'],
-                num_classes=100, pretrained_weight=CONFIG['model']['pretrained_weight'],
-                # base_dims=[16, 16, 16], heads=[16, 32, 64])
-                stride=5)
-    # model = ViT('B_16', pretrained=True, image_size=CONFIG['model']['img_size'],
+    # model = PiT(img_size=CONFIG['model']['img_size'],
     #             num_classes=100)
-    # model = PiT(num_classes=100)
-    # model = ViT('B_16', image_size=CONFIG['model']['img_size'], num_classes=100)
+    # model = PiT(img_size=CONFIG['model']['img_size'],
+    #             num_classes=100,
+    #             patch_size=16,
+    #             stride=8,
+    #             base_dims=[48, 48, 48],
+    #             depth=[2, 6, 4],
+    #             heads=[3, 6, 12],
+    #             mlp_ratio=4,)
+    # model = ViT('B_16', pretrained=False, image_size=CONFIG['model']['img_size'],
+    #             num_classes=100)
+    model = ViT('B_16', image_size=CONFIG['model']['img_size'], num_classes=100,
+                dim=384, num_layers=12, num_heads=6)
 
     # Prepare trainer
     trainer = Trainer(CONFIG, dataloader, model)
