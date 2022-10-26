@@ -1,29 +1,87 @@
+""" Pooling-based Vision Transformer (PiT) in PyTorch
+
+A PyTorch implement of Pooling-based Vision Transformers as described in
+'Rethinking Spatial Dimensions of Vision Transformers' - https://arxiv.org/abs/2103.16302
+
+This code was adapted from the original version at https://github.com/naver-ai/pit, original copyright below.
+
+Modifications for timm by / Copyright 2020 Ross Wightman
+"""
 # PiT
 # Copyright 2021-present NAVER Corp.
 # Apache License v2.0
 
-import torch
-from einops import rearrange
-from torch import nn
 import math
-
+import re
+from copy import deepcopy
 from functools import partial
-from timm.models.layers import trunc_normal_
-from timm.models.vision_transformer import Block as transformer_block
-from timm.models.registry import register_model
+from typing import Tuple
+
+import torch
+from torch import nn
+
+from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+
+from utils.utils import as_tuple, trunc_normal_, resize_positional_embedding_
+from .PiT_transformer import Block
+
+
+def _cfg(url='', **kwargs):
+    return {
+        'url': url,
+        'num_classes': 1000, 'input_size': (3, 224, 224), 'pool_size': None,
+        'crop_pct': .9, 'interpolation': 'bicubic', 'fixed_input_size': True,
+        'mean': IMAGENET_DEFAULT_MEAN, 'std': IMAGENET_DEFAULT_STD,
+        'first_conv': 'patch_embed.conv', 'classifier': 'head',
+        **kwargs
+    }
+
+
+default_cfgs = {
+    # deit models (FB weights)
+    'pit_ti_224': _cfg(
+        url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-pit-weights/pit_ti_730.pth'),
+    'pit_xs_224': _cfg(
+        url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-pit-weights/pit_xs_781.pth'),
+    'pit_s_224': _cfg(
+        url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-pit-weights/pit_s_809.pth'),
+    'pit_b_224': _cfg(
+        url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-pit-weights/pit_b_820.pth'),
+    'pit_ti_distilled_224': _cfg(
+        url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-pit-weights/pit_ti_distill_746.pth',
+        classifier=('head', 'head_dist')),
+    'pit_xs_distilled_224': _cfg(
+        url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-pit-weights/pit_xs_distill_791.pth',
+        classifier=('head', 'head_dist')),
+    'pit_s_distilled_224': _cfg(
+        url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-pit-weights/pit_s_distill_819.pth',
+        classifier=('head', 'head_dist')),
+    'pit_b_distilled_224': _cfg(
+        url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-pit-weights/pit_b_distill_840.pth',
+        classifier=('head', 'head_dist')),
+}
+
+
+class SequentialTuple(nn.Sequential):
+    """ This module exists to work around torchscript typing issues list -> list"""
+    def __init__(self, *args):
+        super(SequentialTuple, self).__init__(*args)
+
+    def forward(self, x: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
+        for module in self:
+            x = module(x)
+        return x
+
 
 class Transformer(nn.Module):
-    def __init__(self, base_dim, depth, heads, mlp_ratio,
-                 drop_rate=.0, attn_drop_rate=.0, drop_path_prob=None):
+    def __init__(
+            self, base_dim, depth, heads, mlp_ratio, pool=None, drop_rate=.0, attn_drop_rate=.0, drop_path_prob=None):
         super(Transformer, self).__init__()
         self.layers = nn.ModuleList([])
         embed_dim = base_dim * heads
 
-        if drop_path_prob is None:
-            drop_path_prob = [0.0 for _ in range(depth)]
-
-        self.blocks = nn.ModuleList([
-            transformer_block(
+        self.blocks = nn.Sequential(*[
+            Block(
                 dim=embed_dim,
                 num_heads=heads,
                 mlp_ratio=mlp_ratio,
@@ -35,33 +93,37 @@ class Transformer(nn.Module):
             )
             for i in range(depth)])
 
-    def forward(self, x, cls_tokens):
-        h, w = x.shape[2:4]
-        x = rearrange(x, 'b c h w -> b (h w) c')
+        self.pool = pool
 
+    def forward(self, x: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
+        x, cls_tokens = x
+        B, C, H, W = x.shape
         token_length = cls_tokens.shape[1]
+
+        x = x.flatten(2).transpose(1, 2)
         x = torch.cat((cls_tokens, x), dim=1)
-        for blk in self.blocks:
-            x = blk(x)
+
+        x = self.blocks(x)
 
         cls_tokens = x[:, :token_length]
         x = x[:, token_length:]
-        x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w)
+        x = x.transpose(1, 2).reshape(B, C, H, W)
 
+        if self.pool is not None:
+            x, cls_tokens = self.pool(x, cls_tokens)
         return x, cls_tokens
 
 
-class conv_head_pooling(nn.Module):
-    def __init__(self, in_feature, out_feature, stride,
-                 padding_mode='zeros'):
-        super(conv_head_pooling, self).__init__()
+class ConvHeadPooling(nn.Module):
+    def __init__(self, in_feature, out_feature, stride, padding_mode='zeros'):
+        super(ConvHeadPooling, self).__init__()
 
-        self.conv = nn.Conv2d(in_feature, out_feature, kernel_size=stride + 1,
-                              padding=stride // 2, stride=stride,
-                              padding_mode=padding_mode, groups=in_feature)
+        self.conv = nn.Conv2d(
+            in_feature, out_feature, kernel_size=stride + 1, padding=stride // 2, stride=stride,
+            padding_mode=padding_mode, groups=in_feature)
         self.fc = nn.Linear(in_feature, out_feature)
 
-    def forward(self, x, cls_token):
+    def forward(self, x, cls_token) -> Tuple[torch.Tensor, torch.Tensor]:
 
         x = self.conv(x)
         cls_token = self.fc(cls_token)
@@ -69,81 +131,95 @@ class conv_head_pooling(nn.Module):
         return x, cls_token
 
 
-class conv_embedding(nn.Module):
-    def __init__(self, in_channels, out_channels, patch_size,
-                 stride, padding):
-        super(conv_embedding, self).__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=patch_size,
-                              stride=stride, padding=padding, bias=True)
+class ConvEmbedding(nn.Module):
+    def __init__(self, in_channels, out_channels, patch_size, stride, padding):
+        super(ConvEmbedding, self).__init__()
+        self.conv = nn.Conv2d(
+            in_channels, out_channels, kernel_size=patch_size, stride=stride, padding=padding, bias=True)
 
     def forward(self, x):
         x = self.conv(x)
         return x
 
 
-class PoolingTransformer(nn.Module):
-    def __init__(self, image_size, patch_size, stride, base_dims, depth, heads,
-                 mlp_ratio, num_classes=1000, in_chans=3,
-                 attn_drop_rate=.0, drop_rate=.0, drop_path_rate=.0):
-        super(PoolingTransformer, self).__init__()
+class PiT(nn.Module):
+    """ Pooling-based Vision Transformer
 
-        total_block = sum(depth)
+    A PyTorch implement of 'Rethinking Spatial Dimensions of Vision Transformers'
+        - https://arxiv.org/abs/2103.16302
+    """
+    def __init__(
+        self,
+        pretrained_weight=None,
+        img_size=224,
+        patch_size=14,
+        stride=7,
+        base_dims=[64, 64, 64],
+        depth=[3, 6, 4],
+        heads=[4, 8, 16],
+        mlp_ratio=4,
+        num_classes=1000,
+        in_chans=3,
+        distilled=False,
+        attn_drop_rate=.0,
+        drop_rate=.0,
+        drop_path_rate=.0
+        ):
+        super().__init__()
+
         padding = 0
-        block_idx = 0
-
-        width = math.floor(
-            (image_size + 2 * padding - patch_size) / stride + 1)
+        img_size = as_tuple(img_size)
+        patch_size = as_tuple(patch_size)
+        height = math.floor((img_size[0] + 2 * padding - patch_size[0]) / stride + 1)
+        width = math.floor((img_size[1] + 2 * padding - patch_size[1]) / stride + 1)
 
         self.base_dims = base_dims
         self.heads = heads
         self.num_classes = num_classes
+        self.num_tokens = 2 if distilled else 1
 
         self.patch_size = patch_size
-        self.pos_embed = nn.Parameter(
-            torch.randn(1, base_dims[0] * heads[0], width, width),
-            requires_grad=True
-        )
-        self.patch_embed = conv_embedding(in_chans, base_dims[0] * heads[0],
-                                          patch_size, stride, padding)
+        self.pos_embed = nn.Parameter(torch.randn(1, base_dims[0] * heads[0], height, width))
+        self.patch_embed = ConvEmbedding(in_chans, base_dims[0] * heads[0], patch_size, stride, padding)
 
-        self.cls_token = nn.Parameter(
-            torch.randn(1, 1, base_dims[0] * heads[0]),
-            requires_grad=True
-        )
+        self.cls_token = nn.Parameter(torch.randn(1, self.num_tokens, base_dims[0] * heads[0]))
         self.pos_drop = nn.Dropout(p=drop_rate)
 
-        self.transformers = nn.ModuleList([])
-        self.pools = nn.ModuleList([])
-
+        transformers = []
+        # stochastic depth decay rule
+        dpr = [x.tolist() for x in torch.linspace(0, drop_path_rate, sum(depth)).split(depth)]
         for stage in range(len(depth)):
-            drop_path_prob = [drop_path_rate * i / total_block
-                              for i in range(block_idx, block_idx + depth[stage])]
-            block_idx += depth[stage]
-
-            self.transformers.append(
-                Transformer(base_dims[stage], depth[stage], heads[stage],
-                            mlp_ratio,
-                            drop_rate, attn_drop_rate, drop_path_prob)
-            )
+            pool = None
             if stage < len(heads) - 1:
-                self.pools.append(
-                    conv_head_pooling(base_dims[stage] * heads[stage],
-                                      base_dims[stage + 1] * heads[stage + 1],
-                                      stride=2
-                                      )
-                )
-
+                pool = ConvHeadPooling(
+                    base_dims[stage] * heads[stage], base_dims[stage + 1] * heads[stage + 1], stride=2)
+            transformers += [Transformer(
+                base_dims[stage], depth[stage], heads[stage], mlp_ratio, pool=pool,
+                drop_rate=drop_rate, attn_drop_rate=attn_drop_rate, drop_path_prob=dpr[stage])
+            ]
+        self.transformers = SequentialTuple(*transformers)
         self.norm = nn.LayerNorm(base_dims[-1] * heads[-1], eps=1e-6)
         self.embed_dim = base_dims[-1] * heads[-1]
 
         # Classifier head
-        if num_classes > 0:
-            self.head = nn.Linear(base_dims[-1] * heads[-1], num_classes)
-        else:
-            self.head = nn.Identity()
+        self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
+        self.head_dist = nn.Linear(self.embed_dim, self.num_classes) \
+            if num_classes > 0 and distilled else nn.Identity()
 
         trunc_normal_(self.pos_embed, std=.02)
         trunc_normal_(self.cls_token, std=.02)
+        
+        if pretrained_weight is not None:
+            pretrained_num_channels = 3
+            pretrained_num_classes = 1000
+            pretrained_image_size = 224
+            self.load_pretrained_weights(
+                weights_path=pretrained_weight,
+                load_first_conv=(in_chans == pretrained_num_channels),
+                load_fc=(num_classes == pretrained_num_classes),
+                load_repr_layer=False,
+                resize_positional_embedding=(32 != pretrained_image_size),
+            )
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
@@ -160,206 +236,91 @@ class PoolingTransformer(nn.Module):
 
     def reset_classifier(self, num_classes, global_pool=''):
         self.num_classes = num_classes
-        if num_classes > 0:
-            self.head = nn.Linear(self.embed_dim, num_classes)
-        else:
-            self.head = nn.Identity()
+        self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
+        self.head_dist = nn.Linear(self.embed_dim, self.num_classes) \
+            if num_classes > 0 and self.num_tokens == 2 else nn.Identity()
 
     def forward_features(self, x):
         x = self.patch_embed(x)
-
-        pos_embed = self.pos_embed
-        x = self.pos_drop(x + pos_embed)
-        cls_tokens = self.cls_token.expand(x.shape[0], -1, -1)
-
-        for stage in range(len(self.pools)):
-            x, cls_tokens = self.transformers[stage](x, cls_tokens)
-            x, cls_tokens = self.pools[stage](x, cls_tokens)
-        x, cls_tokens = self.transformers[-1](x, cls_tokens)
-
+        # 224 x 224 -> 31 x 31
+        # 32 x 32 -> 5 x 5
+        
+        x = self.pos_drop(x + self.pos_embed)
+        # x.shape = (B, 256, 31, 31)
+        # self.pos_embed.shape = (1, 256, 31, 31)
+        
+        cls_tokens = self.cls_token.expand(x.shape[0], -1, -1) # cls_tokens.shape = (B, 1, 256)
+        
+        x, cls_tokens = self.transformers((x, cls_tokens))
+        # x.shape = (B, 1024, 8, 8)
+        # cls_tokens.shape = (B, 1, 1024)
+        
         cls_tokens = self.norm(cls_tokens)
-
         return cls_tokens
+    
+    def load_pretrained_weights(
+        self, 
+        weights_path=None, 
+        load_first_conv=True, 
+        load_fc=True, 
+        load_repr_layer=False,
+        resize_positional_embedding=False,
+        verbose=True,
+        strict=True,
+    ):
+        """Loads pretrained weights from weights path or download using url.
+        Args:
+            model (Module): Full model (a nn.Module)
+            model_name (str): Model name (e.g. B_16)
+            weights_path (None or str):
+                str: path to pretrained weights file on the local disk.
+                None: use pretrained weights downloaded from the Internet.
+            load_first_conv (bool): Whether to load patch embedding.
+            load_fc (bool): Whether to load pretrained weights for fc layer at the end of the model.
+            resize_positional_embedding=False,
+            verbose (bool): Whether to print on completion
+        """
+        
+        # Load or download weights
+        state_dict = torch.load(weights_path)
+
+        # Modifications to load partial state dict
+        expected_missing_keys = []
+        if not load_first_conv and 'patch_embedding.weight' in state_dict:
+            expected_missing_keys += ['patch_embedding.weight', 'patch_embedding.bias']
+        if not load_fc and 'head.weight' in state_dict:
+            expected_missing_keys += ['head.weight', 'head.bias']
+        if not load_repr_layer and 'pre_logits.weight' in state_dict:
+            expected_missing_keys += ['pre_logits.weight', 'pre_logits.bias']
+        for key in expected_missing_keys:
+            print(f'Missing keys popped: {key}')
+            state_dict.pop(key)
+
+        # Change size of positional embeddings
+        if resize_positional_embedding: 
+            posemb = state_dict['pos_embed']
+            posemb_new = self.state_dict()['pos_embed']
+            state_dict['pos_embed'] = \
+                resize_positional_embedding_(posemb=posemb, posemb_new=posemb_new, 
+                    has_class_token=True)
+
+        # Load state dict
+        ret = self.load_state_dict(state_dict, strict=False)
+        # if strict:
+        #     assert not ret.unexpected_keys, \
+        #         'Missing keys when loading pretrained weights: {}'.format(ret.unexpected_keys)
+        # else:
+        #     return ret
+        return ret
 
     def forward(self, x):
-        cls_token = self.forward_features(x)
-        cls_token = self.head(cls_token[:, 0])
-        return cls_token
-
-
-class DistilledPoolingTransformer(PoolingTransformer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.cls_token = nn.Parameter(
-            torch.randn(1, 2, self.base_dims[0] * self.heads[0]),
-            requires_grad=True)
-        if self.num_classes > 0:
-            self.head_dist = nn.Linear(self.base_dims[-1] * self.heads[-1],
-                                       self.num_classes)
+        x = self.forward_features(x)
+        x_cls = self.head(x[:, 0])
+        if self.num_tokens > 1:
+            x_dist = self.head_dist(x[:, 1])
+            if self.training and not torch.jit.is_scripting():
+                return x_cls, x_dist
+            else:
+                return (x_cls + x_dist) / 2
         else:
-            self.head_dist = nn.Identity()
-
-        trunc_normal_(self.cls_token, std=.02)
-        self.head_dist.apply(self._init_weights)
-
-    def forward(self, x):
-        cls_token = self.forward_features(x)
-        x_cls = self.head(cls_token[:, 0])
-        x_dist = self.head_dist(cls_token[:, 1])
-        if self.training:
-            return x_cls, x_dist
-        else:
-            return (x_cls + x_dist) / 2
-
-@register_model
-def pit_b(pretrained, **kwargs):
-    model = PoolingTransformer(
-        # image_size=224,
-        # patch_size=16, => 14 x 14 patches
-        image_size=32,
-        patch_size=8,
-        stride=7,
-        base_dims=[64, 64, 64],
-        depth=[3, 6, 4],
-        heads=[4, 8, 16],
-        mlp_ratio=4,
-        **kwargs
-    )
-    if pretrained:
-        state_dict = \
-        torch.load('weights/pit_b_820.pth', map_location='cpu')
-        model.load_state_dict(state_dict)
-    return model
-
-@register_model
-def pit_s(pretrained, **kwargs):
-    model = PoolingTransformer(
-        image_size=224,
-        patch_size=16,
-        stride=8,
-        base_dims=[48, 48, 48],
-        depth=[2, 6, 4],
-        heads=[3, 6, 12],
-        mlp_ratio=4,
-        **kwargs
-    )
-    if pretrained:
-        state_dict = \
-        torch.load('weights/pit_s_809.pth', map_location='cpu')
-        model.load_state_dict(state_dict)
-    return model
-
-
-@register_model
-def pit_xs(pretrained, **kwargs):
-    model = PoolingTransformer(
-        image_size=224,
-        patch_size=16,
-        stride=8,
-        base_dims=[48, 48, 48],
-        depth=[2, 6, 4],
-        heads=[2, 4, 8],
-        mlp_ratio=4,
-        **kwargs
-    )
-    if pretrained:
-        state_dict = \
-        torch.load('weights/pit_xs_781.pth', map_location='cpu')
-        model.load_state_dict(state_dict)
-    return model
-
-@register_model
-def pit_ti(pretrained, **kwargs):
-    model = PoolingTransformer(
-        image_size=224,
-        patch_size=16,
-        stride=8,
-        base_dims=[32, 32, 32],
-        depth=[2, 6, 4],
-        heads=[2, 4, 8],
-        mlp_ratio=4,
-        **kwargs
-    )
-    if pretrained:
-        state_dict = \
-        torch.load('weights/pit_ti_730.pth', map_location='cpu')
-        model.load_state_dict(state_dict)
-    return model
-
-
-@register_model
-def pit_b_distilled(pretrained, **kwargs):
-    model = DistilledPoolingTransformer(
-        # image_size=224,
-        # patch_size=14,
-        image_size=32,
-        patch_size=8,
-        stride=7,
-        base_dims=[64, 64, 64],
-        depth=[3, 6, 4],
-        heads=[4, 8, 16],
-        mlp_ratio=4,
-        **kwargs
-    )
-    if pretrained:
-        state_dict = \
-        torch.load('weights/pit_b_distill_840.pth', map_location='cpu')
-        model.load_state_dict(state_dict)
-    return model
-
-
-@register_model
-def pit_s_distilled(pretrained, **kwargs):
-    model = DistilledPoolingTransformer(
-        image_size=224,
-        patch_size=16,
-        stride=8,
-        base_dims=[48, 48, 48],
-        depth=[2, 6, 4],
-        heads=[3, 6, 12],
-        mlp_ratio=4,
-        **kwargs
-    )
-    if pretrained:
-        state_dict = \
-        torch.load('weights/pit_s_distill_819.pth', map_location='cpu')
-        model.load_state_dict(state_dict)
-    return model
-
-
-@register_model
-def pit_xs_distilled(pretrained, **kwargs):
-    model = DistilledPoolingTransformer(
-        image_size=224,
-        patch_size=16,
-        stride=8,
-        base_dims=[48, 48, 48],
-        depth=[2, 6, 4],
-        heads=[2, 4, 8],
-        mlp_ratio=4,
-        **kwargs
-    )
-    if pretrained:
-        state_dict = \
-        torch.load('weights/pit_xs_distill_791.pth', map_location='cpu')
-        model.load_state_dict(state_dict)
-    return model
-
-
-@register_model
-def pit_ti_distilled(pretrained, **kwargs):
-    model = DistilledPoolingTransformer(
-        image_size=224,
-        patch_size=16,
-        stride=8,
-        base_dims=[32, 32, 32],
-        depth=[2, 6, 4],
-        heads=[2, 4, 8],
-        mlp_ratio=4,
-        **kwargs
-    )
-    if pretrained:
-        state_dict = \
-        torch.load('weights/pit_ti_distill_746.pth', map_location='cpu')
-        model.load_state_dict(state_dict)
-    return model
+            return x_cls
