@@ -1,70 +1,16 @@
-"""configs.py - ViT model configurations, based on:
-https://github.com/google-research/vision_transformer/blob/master/vit_jax/configs.py
-"""
 import os
 import torch
-
-def get_base_config():
-    """Base ViT config ViT"""
-    return dict(
-      dim=768,
-      ff_dim=3072,
-      num_heads=12,
-      num_layers=12,
-      attention_dropout_rate=0.0,
-      dropout_rate=0.1,
-      representation_size=768,
-      classifier='token'
-    )
-
-def get_b16_config():
-    """Returns the ViT-B/16 configuration."""
-    config = get_base_config()
-    config.update(dict(patches=(16, 16)))
-    return config
-
-def get_b32_config():
-    """Returns the ViT-B/32 configuration."""
-    config = get_b16_config()
-    config.update(dict(patches=(32, 32)))
-    return config
-
-def get_l16_config():
-    """Returns the ViT-L/16 configuration."""
-    config = get_base_config()
-    config.update(dict(
-        patches=(16, 16),
-        dim=1024,
-        ff_dim=4096,
-        num_heads=16,
-        num_layers=24,
-        attention_dropout_rate=0.0,
-        dropout_rate=0.1,
-        representation_size=1024
-    ))
-    return config
-
-def get_l32_config():
-    """Returns the ViT-L/32 configuration."""
-    config = get_l16_config()
-    config.update(dict(patches=(32, 32)))
-    return config
-
-def drop_head_variant(config):
-    config.update(dict(representation_size=None))
-    return config
 
 CONFIG = {
     "data_root": "./dataset",
     "dataset_name": "CIFAR100",  # CIFAR10 or CIFAR100
     "train_val_split": 0.8,
-    "cuda": torch.cuda.is_available(),
     "model": {
-        "img_size": 112,
+        "img_size": 16,
     },
     "train": {
         "batch_size": 512,
-        "epoch": 20,
+        "epoch": 1,
         "shuffle": True,
         "criterion": "CrossEntropyLoss",
         "optimizer": "SGD",
@@ -77,16 +23,26 @@ CONFIG = {
         "log_iter": 100,
     },
     "validation": {
-        "batch_size": 128,
+        "batch_size": 8,
         "shuffle": True,
     },
     "test": {
-        "batch_size": 512,
+        "batch_size": 8,
         "shuffle": True,
     },
     "log_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "log"),
     "save_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "save"),
 }
+
+try:
+    torch.backends.mps.is_available()
+    CONFIG['device'] = 'mps'
+except:
+    if torch.cuda.is_available():
+        CONFIG['device'] = 'cuda'
+    else:
+        CONFIG['device'] = 'cpu'
+
 
 VIT_CONFIG = {
     'B16': {

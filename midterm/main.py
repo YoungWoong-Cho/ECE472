@@ -13,23 +13,14 @@ from trainer import Trainer
 from model.ViT import get_ViT
 from model.PiT import get_PiT
 
-from absl import app
-
-def main(a):
+if __name__ == "__main__":
     if not os.path.exists(CONFIG["log_dir"]):
         os.mkdir(CONFIG["log_dir"])
     if not os.path.exists(CONFIG["save_dir"]):
         os.mkdir(CONFIG["save_dir"])
 
-    # Generate GT data
     dataloader = CIFARDataLoader()
+    model = get_PiT('Ti16')
 
-    model = get_ViT('B16')
-
-    # Prepare trainer
-    trainer = Trainer(CONFIG, dataloader, model)
+    trainer = Trainer(dataloader, model)
     trainer.train()
-
-
-if __name__ == "__main__":
-    app.run(main)

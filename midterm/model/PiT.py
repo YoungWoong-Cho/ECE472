@@ -1,16 +1,3 @@
-""" Pooling-based Vision Transformer (PiT) in PyTorch
-
-A PyTorch implement of Pooling-based Vision Transformers as described in
-'Rethinking Spatial Dimensions of Vision Transformers' - https://arxiv.org/abs/2103.16302
-
-This code was adapted from the original version at https://github.com/naver-ai/pit, original copyright below.
-
-Modifications for timm by / Copyright 2020 Ross Wightman
-"""
-# PiT
-# Copyright 2021-present NAVER Corp.
-# Apache License v2.0
-
 import math
 import torch
 
@@ -24,7 +11,6 @@ from .PiT_transformer import Block
 
 
 class SequentialTuple(nn.Sequential):
-    """ This module exists to work around torchscript typing issues list -> list"""
     def __init__(self, *args):
         super(SequentialTuple, self).__init__(*args)
 
@@ -33,11 +19,10 @@ class SequentialTuple(nn.Sequential):
             x = module(x)
         return x
 
-
 class Transformer(nn.Module):
     def __init__(
             self, base_dim, depth, heads, mlp_ratio, pool=None, drop_rate=.0, attn_drop_rate=.0, drop_path_prob=None):
-        super(Transformer, self).__init__()
+        super().__init__()
         self.layers = nn.ModuleList([])
         embed_dim = base_dim * heads
 
@@ -46,7 +31,6 @@ class Transformer(nn.Module):
                 dim=embed_dim,
                 num_heads=heads,
                 mlp_ratio=mlp_ratio,
-                qkv_bias=True,
                 drop=drop_rate,
                 attn_drop=attn_drop_rate,
                 drop_path=drop_path_prob[i],
