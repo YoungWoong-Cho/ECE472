@@ -1,9 +1,9 @@
 import torch
 import torchvision
-from torchvision import transforms
 from config import CONFIG
+from torchvision import transforms
 
-NORMALIZE_FACTORS = {
+NORMALIZATION_FACTORS = {
     'CIFAR10': [(0.49139968, 0.48215841, 0.44653091),
                  (0.24703223, 0.24348513, 0.26158784)],
     'CIFAR100': [(0.5070751592371323, 0.48654887331495095, 0.4409178433670343),
@@ -11,6 +11,9 @@ NORMALIZE_FACTORS = {
 }
 
 class CIFARDataLoader:
+    """
+    Dataloader class for CIFAR dataset
+    """
     def __init__(self):
         assert CONFIG["dataset_name"] in ['CIFAR10', 'CIFAR100'], \
             'dataset_name must be one of the followings: CIFAR10, CIFAR100'
@@ -19,7 +22,7 @@ class CIFARDataLoader:
             [
                 transforms.ToTensor(),
                 transforms.Normalize(
-                    *NORMALIZE_FACTORS[CONFIG['dataset_name']]
+                    *NORMALIZATION_FACTORS[CONFIG['dataset_name']]
                 ),
                 transforms.Resize(CONFIG['model']['image_size'])
             ]

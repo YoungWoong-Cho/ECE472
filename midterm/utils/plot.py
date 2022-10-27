@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 
-# B, S, Ti
+"""
+Experiment results listed in following order: B, S, Ti
+"""
 data = {
     "ViT": {
         "GFLOPS": [4.326590976, 1.809307008, 0.816179904],

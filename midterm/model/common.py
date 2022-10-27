@@ -1,6 +1,10 @@
 import torch
 import torch.nn as nn
 
+"""
+Common nn.Modules that are used in both ViT and PiT
+"""
+
 class FeedForward(nn.Module):
     def __init__(self, dim, hidden_dim, dropout=0.):
         super().__init__()

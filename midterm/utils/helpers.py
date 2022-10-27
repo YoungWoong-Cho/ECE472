@@ -2,9 +2,9 @@ import math
 import numpy as np
 import torch
 
+from PIL import Image
 from config import CONFIG
 from fvcore.nn import FlopCountAnalysis
-from PIL import Image
 from torch.optim.lr_scheduler import _LRScheduler
 
 
@@ -27,18 +27,18 @@ def compute_flops(model):
     return flops.total()
 
 
-def save_img(data, idx, fname='img'):
-    images = data[b"data"]
-    img = np.transpose(images.reshape(-1, 3, 32, 32), (0, 2, 3, 1))[idx]
-    img = Image.fromarray(img)
-    img.save(f"{fname}.png")
-
-
 def as_tuple(x):
     return x if isinstance(x, tuple) else (x, x)
 
 
-def truncate_normal(tensor, mean=0., std=1., a=-2., b=2.):
+def truncated_normal(tensor, mean=0., std=1., a=-2., b=2.):
+    """
+    DeiT paper suggests to initialize the weights with a truncated normal distribution
+    Referenced as :
+        Boris Hanin and David Rolnick. How to start training: The effect of initialization
+        and architecture. NIPS, 31, 2018.
+    https://arxiv.org/pdf/2012.12877.pdf
+    """
     def norm_cdf(x):
         return (1. + math.erf(x / math.sqrt(2.))) / 2.
 
@@ -52,3 +52,9 @@ def truncate_normal(tensor, mean=0., std=1., a=-2., b=2.):
         tensor.add_(mean)
         tensor.clamp_(min=a, max=b)
         return tensor
+
+def save_img(data, idx, fname='img'):
+    images = data[b"data"]
+    img = np.transpose(images.reshape(-1, 3, 32, 32), (0, 2, 3, 1))[idx]
+    img = Image.fromarray(img)
+    img.save(f"{fname}.png")

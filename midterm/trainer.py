@@ -1,11 +1,11 @@
 import torch
-import torch.optim as optim
 import torch.nn as nn
+import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
 from config import CONFIG
-from utils.metrics import top_k_accuracy
 from utils.helpers import WarmUpLR
+from utils.metrics import top_k_accuracy
 
 
 class Trainer(object):

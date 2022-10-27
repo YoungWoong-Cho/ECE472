@@ -2,9 +2,8 @@ import os
 import torch
 
 CONFIG = {
-    "data_root": "./dataset",
-    "dataset_name": "CIFAR100",  # CIFAR10 or CIFAR100
-    "train_val_split": 0.8,
+    "data_root": "./dataset",       # directory to download CIFAR dataset
+    "dataset_name": "CIFAR100",     # CIFAR10 or CIFAR100
     "model": {
         "image_size": 32,
     },
@@ -21,10 +20,6 @@ CONFIG = {
         "grad_clip": 1.0,
         "warm": 5,
         "log_iter": 100,
-    },
-    "validation": {
-        "batch_size": 8,
-        "shuffle": True,
     },
     "test": {
         "batch_size": 8,
@@ -72,7 +67,6 @@ VIT_CONFIG = {
 
 PIT_CONFIG = {
     'B16': {
-        'image_size': CONFIG['model']['image_size'],
         'patch_size': 14,
         'stride': 7,
         'base_dims': [64, 64, 64],
@@ -82,7 +76,6 @@ PIT_CONFIG = {
         'num_classes': int(CONFIG['dataset_name'][5:]),
     },
     'S16': {
-        'image_size': CONFIG['model']['image_size'],
         'patch_size': 16,
         'stride': 8,
         'base_dims': [48, 48, 48],
@@ -92,7 +85,6 @@ PIT_CONFIG = {
         'num_classes': int(CONFIG['dataset_name'][5:]),
     },
     'Ti16': {
-        'image_size': CONFIG['model']['image_size'],
         'patch_size': 16,
         'stride': 8,
         'base_dims': [32, 32, 32],

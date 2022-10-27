@@ -1,11 +1,11 @@
 import torch
-from torch import nn
 
 from einops import repeat
 from einops.layers.torch import Rearrange
+from torch import nn
 
 from config import CONFIG, VIT_CONFIG
-from model.common import FeedForward, Attention
+from model.common import Attention, FeedForward
 from utils.helpers import as_tuple
 
 
@@ -34,8 +34,13 @@ class Transformer(nn.Module):
         return x
 
 class ViT(nn.Module):
+    """
+    Based on "AN IMAGE IS WORTH 16X16 WORDS: TRANSFORMERS FOR IMAGE RECOGNITION AT SCALE"
+    https://arxiv.org/pdf/2010.11929.pdf
+    """
     def __init__(
             self,
+            name,
             image_size, 
             patch_size,
             num_classes,
@@ -48,6 +53,8 @@ class ViT(nn.Module):
             emb_dropout = 0.
         ):
         super().__init__()
+
+        self.name = name
 
         image_height, image_width = as_tuple(image_size)
         patch_height, patch_width = as_tuple(patch_size)
@@ -88,10 +95,14 @@ class ViT(nn.Module):
 
 
 def get_ViT(name):
+    """
+    Factory design for ViT models
+    """
     assert name in VIT_CONFIG.keys(), \
         f'name should be one of the followings: {VIT_CONFIG.keys()}'
     
     model = ViT(
+        name = name,
         image_size=CONFIG['model']['image_size'],
         patch_size=VIT_CONFIG[name]['patch_size'],
         num_classes=VIT_CONFIG[name]['num_classes'],

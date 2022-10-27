@@ -5,8 +5,8 @@ from config import CONFIG, PIT_CONFIG
 from functools import partial
 from torch import nn
 
-from utils.helpers import as_tuple, truncate_normal
 from model.common import Attention, FeedForward
+from utils.helpers import as_tuple, truncated_normal
 
 
 class SequentialTuple(nn.Sequential):
@@ -97,8 +97,13 @@ class ConvEmbedding(nn.Module):
 
 
 class PiT(nn.Module):
+    """
+    Based on "Rethinking Spatial Dimensions of Vision Transformers"
+    https://arxiv.org/pdf/2103.16302.pdf
+    """
     def __init__(
             self,
+            name,
             image_size,
             patch_size,
             stride,
@@ -109,6 +114,8 @@ class PiT(nn.Module):
             num_classes,
         ):
         super().__init__()
+
+        self.name = name
 
         image_height, image_width = as_tuple(image_size)
         patch_height, patch_width = as_tuple(patch_size)
@@ -122,12 +129,11 @@ class PiT(nn.Module):
         self.base_dims = base_dims
         self.heads = heads
         self.num_classes = num_classes
-        self.num_tokens = 1
 
         self.pos_embed = nn.Parameter(torch.randn(1, base_dims[0] * heads[0], height, width))
         self.patch_embed = ConvEmbedding(3, base_dims[0] * heads[0], patch_size, stride)
 
-        self.cls_token = nn.Parameter(torch.randn(1, self.num_tokens, base_dims[0] * heads[0]))
+        self.cls_token = nn.Parameter(torch.randn(1, 1, base_dims[0] * heads[0]))
 
         transformers = []
         for stage in range(len(depth)):
@@ -142,15 +148,14 @@ class PiT(nn.Module):
         self.norm = nn.LayerNorm(base_dims[-1] * heads[-1], eps=1e-6)
         self.embed_dim = base_dims[-1] * heads[-1]
 
-        self.mlp_head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
+        self.mlp_head = nn.Linear(self.embed_dim, num_classes)
 
-        truncate_normal(self.pos_embed, std=.02)
-        truncate_normal(self.cls_token, std=.02)
+        truncated_normal(self.pos_embed, std=.02)
+        truncated_normal(self.cls_token, std=.02)
 
         self.apply(self.initialize_weights)
 
     def initialize_weights(self, m):
-        # As proposed in the PiT paper, 
         if isinstance(m, nn.LayerNorm):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
@@ -168,10 +173,14 @@ class PiT(nn.Module):
 
 
 def get_PiT(name):
+    """
+    Factory design for PiT models
+    """
     assert name in PIT_CONFIG.keys(), \
         f'name should be one of the followings: {PIT_CONFIG.keys()}'
     
     model = PiT(
+        name = name,
         image_size=CONFIG['model']['image_size'],
         patch_size=PIT_CONFIG[name]['patch_size'],
         num_classes=PIT_CONFIG[name]['num_classes'],
