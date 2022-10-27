@@ -31,7 +31,7 @@ CONFIG = {
 
 
 if torch.backends.mps.is_available():
-    CONFIG['device'] = 'cpu'
+    CONFIG['device'] = 'mps'
 elif torch.cuda.is_available():
     CONFIG['device'] = 'cuda'
 else:
