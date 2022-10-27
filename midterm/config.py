@@ -1,6 +1,8 @@
 """configs.py - ViT model configurations, based on:
 https://github.com/google-research/vision_transformer/blob/master/vit_jax/configs.py
 """
+import os
+import torch
 
 def get_base_config():
     """Base ViT config ViT"""
@@ -51,6 +53,43 @@ def get_l32_config():
 def drop_head_variant(config):
     config.update(dict(representation_size=None))
     return config
+
+CONFIG = {
+    "data_root": "./midterm/dataset",
+    "dataset_name": "CIFAR-100",  # CIFAR-10 or CIFAR-100
+    "train_val_split": 0.8,
+    "cuda": torch.cuda.is_available(),
+    "model": {
+        "img_size": 112,
+        "pretrained_weight": "/content/ECE472/midterm/pretrained_weights/pit_b_820.pth"
+    },
+    "train": {
+        "batch_size": 512,
+        "epoch": 20,
+        "shuffle": True,
+        "criterion": "CrossEntropyLoss",
+        "optimizer": "SGD",
+        "learning_rate": float(3e-2),
+        "momentum": 0.9,
+        # "weight_decay": float(5e-4),
+        "weight_decay": 0.0,
+        "scheduler": "CosineAnnealingLR",
+        # "milestones": [60, 120, 160],
+        # "gamma": 0.2,
+        "grad_clip": 1.0,
+        "warm": 5,
+        "log_iter": 100,
+    },
+    "validation": {
+        "batch_size": 128,
+        "shuffle": True,
+    },
+    "test": {
+        "shuffle": True,
+    },
+    "log_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "log"),
+    "save_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "save"),
+}
 
 
 PRETRAINED_MODELS = {
