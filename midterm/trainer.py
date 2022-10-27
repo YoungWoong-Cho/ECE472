@@ -67,7 +67,7 @@ class Trainer(object):
                     f"Epoch: {epoch} Iter: {idx}/{len(self.dataloader.train_dataloader)} [Train loss: {loss.cpu().detach().numpy():0.6f}]", end=' '
                 )
                 print(
-                    f"[Train acc: {train_accuracy}] [Val acc: {val_accuracy}]"
+                    f"[Val acc: {val_accuracy}]"
                 )
 
                 if global_i % CONFIG['train']['log_iter'] == 0:
