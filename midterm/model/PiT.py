@@ -6,7 +6,7 @@ from functools import partial
 from torch import nn
 
 from utils.helpers import as_tuple, truncate_normal
-from model.transformer import Attention, FeedForward
+from model.common import Attention, FeedForward
 
 
 class SequentialTuple(nn.Sequential):

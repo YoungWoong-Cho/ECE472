@@ -5,7 +5,7 @@ from einops import repeat
 from einops.layers.torch import Rearrange
 
 from config import CONFIG, VIT_CONFIG
-from model.transformer import FeedForward, Attention
+from model.common import FeedForward, Attention
 from utils.helpers import as_tuple
 
 
