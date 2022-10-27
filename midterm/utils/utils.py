@@ -11,6 +11,14 @@ import torch
 from torch.utils import model_zoo
 
 from config import PRETRAINED_MODELS
+from fvcore.nn import FlopCountAnalysis
+
+def compute_flops(model, input):
+    flops = FlopCountAnalysis(model, input)
+    flops.total()
+    flops.by_operator()
+    flops.by_module()
+    flops.by_module_and_operator()
 
 
 def save_img(data, idx):
@@ -159,7 +167,6 @@ def load_pretrained_weights(
 def maybe_print(s: str, flag: bool):
     if flag:
         print(s)
-
 
 def as_tuple(x):
     return x if isinstance(x, tuple) else (x, x)
