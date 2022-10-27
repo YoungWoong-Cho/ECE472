@@ -25,14 +25,12 @@ if __name__=='__main__':
     #                 heads=[2, 4, 8],
     #                 mlp_ratio=4,)
 
-    # ViT_B16 = ViT('B_16', image_size=CONFIG['model']['img_size'],
-    #               num_classes=100)
-    # ViT_S16 = ViT('B_16', image_size=CONFIG['model']['img_size'],
-    #               num_classes=100,
-    #               dim=384,
-    #               num_layers=12, num_heads=6)
-    ViT_Ti16 = ViT('B_16', image_size=CONFIG['model']['img_size'], num_classes=100,
-                  dim=192, num_layers=12, num_heads=3)
+    # ViT_B16 = ViT(image_size=CONFIG['model']['img_size'], patch_size=16, num_classes=100,
+    #               dim=768, depth=12, heads=12, mlp_dim=3072)
+    # ViT_S16 = ViT(image_size=CONFIG['model']['img_size'], patch_size=16, num_classes=100,
+    #                 dim=384, depth=12, heads=6, mlp_dim=3072)
+    ViT_Ti16 = ViT(image_size=CONFIG['model']['img_size'], patch_size=16, num_classes=100,
+                    dim=192, depth=12, heads=3, mlp_dim=3072)
 
     model = ViT_Ti16
     model.eval()

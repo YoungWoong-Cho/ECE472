@@ -15,10 +15,7 @@ from fvcore.nn import FlopCountAnalysis
 
 def compute_flops(model, input):
     flops = FlopCountAnalysis(model, input)
-    flops.total()
-    flops.by_operator()
-    flops.by_module()
-    flops.by_module_and_operator()
+    print(f'{flops.total() / 1e9} GFLOPS')
 
 
 def save_img(data, idx):
