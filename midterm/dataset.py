@@ -21,7 +21,7 @@ class CIFARDataLoader:
                 transforms.Normalize(
                     *NORMALIZE_FACTORS[CONFIG['dataset_name']]
                 ),
-                transforms.Resize(CONFIG['model']['img_size'])
+                transforms.Resize(CONFIG['model']['image_size'])
             ]
         )
 

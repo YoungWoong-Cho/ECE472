@@ -12,6 +12,7 @@ from dataset import CIFARDataLoader
 from trainer import Trainer
 from model.ViT import get_ViT
 from model.PiT import get_PiT
+from utils.helpers import compute_flops
 
 if __name__ == "__main__":
     if not os.path.exists(CONFIG["log_dir"]):
@@ -19,8 +20,14 @@ if __name__ == "__main__":
     if not os.path.exists(CONFIG["save_dir"]):
         os.mkdir(CONFIG["save_dir"])
 
+    # Prepare dataloader and model
     dataloader = CIFARDataLoader()
     model = get_PiT('Ti16')
+
+    # Run GFLOPs analysis
+    model.eval()
+    flops = compute_flops(model)
+    print(f'{flops.total() / 1e9} GFLOPS')
 
     trainer = Trainer(dataloader, model)
     trainer.train()

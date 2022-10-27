@@ -6,10 +6,10 @@ CONFIG = {
     "dataset_name": "CIFAR100",  # CIFAR10 or CIFAR100
     "train_val_split": 0.8,
     "model": {
-        "img_size": 16,
+        "image_size": 32,
     },
     "train": {
-        "batch_size": 512,
+        "batch_size": 8,
         "epoch": 1,
         "shuffle": True,
         "criterion": "CrossEntropyLoss",
@@ -36,7 +36,7 @@ CONFIG = {
 
 
 if torch.backends.mps.is_available():
-    CONFIG['device'] = 'mps'
+    CONFIG['device'] = 'cpu'
 elif torch.cuda.is_available():
     CONFIG['device'] = 'cuda'
 else:
@@ -72,30 +72,33 @@ VIT_CONFIG = {
 
 PIT_CONFIG = {
     'B16': {
+        'image_size': CONFIG['model']['image_size'],
         'patch_size': 14,
-        'num_classes': int(CONFIG['dataset_name'][5:]),
         'stride': 7,
         'base_dims': [64, 64, 64],
         'depth': [3, 6, 4],
         'heads': [4, 8, 16],
-        'mlp_ratio': 4
+        'mlp_ratio': 4,
+        'num_classes': int(CONFIG['dataset_name'][5:]),
     },
     'S16': {
+        'image_size': CONFIG['model']['image_size'],
         'patch_size': 16,
-        'num_classes': int(CONFIG['dataset_name'][5:]),
         'stride': 8,
         'base_dims': [48, 48, 48],
         'depth': [2, 6, 4],
         'heads': [3, 6, 12],
-        'mlp_ratio': 4
+        'mlp_ratio': 4,
+        'num_classes': int(CONFIG['dataset_name'][5:]),
     },
     'Ti16': {
+        'image_size': CONFIG['model']['image_size'],
         'patch_size': 16,
-        'num_classes': int(CONFIG['dataset_name'][5:]),
         'stride': 8,
         'base_dims': [32, 32, 32],
         'depth': [2, 6, 4],
         'heads': [2, 4, 8],
-        'mlp_ratio': 4
+        'mlp_ratio': 4,
+        'num_classes': int(CONFIG['dataset_name'][5:]),
     }
 }

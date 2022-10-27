@@ -2,6 +2,7 @@ import math
 import numpy as np
 import torch
 
+from config import CONFIG
 from fvcore.nn import FlopCountAnalysis
 from PIL import Image
 from torch.optim.lr_scheduler import _LRScheduler
@@ -20,9 +21,10 @@ class WarmUpLR(_LRScheduler):
         ]
 
 
-def compute_flops(model, input):
+def compute_flops(model):
+    input = torch.rand([1, 3, CONFIG['model']['image_size'], CONFIG['model']['image_size']])
     flops = FlopCountAnalysis(model, input)
-    print(f'{flops.total() / 1e9} GFLOPS')
+    return flops.total()
 
 
 def save_img(data, idx, fname='img'):
@@ -36,7 +38,7 @@ def as_tuple(x):
     return x if isinstance(x, tuple) else (x, x)
 
 
-def trunc_normal_(tensor, mean=0., std=1., a=-2., b=2.):
+def truncate_normal(tensor, mean=0., std=1., a=-2., b=2.):
     def norm_cdf(x):
         return (1. + math.erf(x / math.sqrt(2.))) / 2.
 
