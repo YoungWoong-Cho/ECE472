@@ -5,10 +5,10 @@ CONFIG = {
     "data_root": "./dataset",       # directory to download CIFAR dataset
     "dataset_name": "CIFAR100",     # CIFAR10 or CIFAR100
     "model": {
-        "image_size": 32,
+        "image_size": 112,
     },
     "train": {
-        "batch_size": 8,
+        "batch_size": 512,
         "epoch": 1,
         "shuffle": True,
         "criterion": "CrossEntropyLoss",
@@ -22,7 +22,7 @@ CONFIG = {
         "log_iter": 100,
     },
     "test": {
-        "batch_size": 8,
+        "batch_size": 512,
         "shuffle": True,
     },
     "log_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "log"),
