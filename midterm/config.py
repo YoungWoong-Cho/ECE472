@@ -34,14 +34,13 @@ CONFIG = {
     "save_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "save"),
 }
 
-try:
-    torch.backends.mps.is_available()
+
+if torch.backends.mps.is_available():
     CONFIG['device'] = 'mps'
-except:
-    if torch.cuda.is_available():
-        CONFIG['device'] = 'cuda'
-    else:
-        CONFIG['device'] = 'cpu'
+elif torch.cuda.is_available():
+    CONFIG['device'] = 'cuda'
+else:
+    CONFIG['device'] = 'cpu'
 
 
 VIT_CONFIG = {
