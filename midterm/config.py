@@ -55,13 +55,12 @@ def drop_head_variant(config):
     return config
 
 CONFIG = {
-    "data_root": "./midterm/dataset",
-    "dataset_name": "CIFAR-100",  # CIFAR-10 or CIFAR-100
+    "data_root": "./dataset",
+    "dataset_name": "CIFAR100",  # CIFAR10 or CIFAR100
     "train_val_split": 0.8,
     "cuda": torch.cuda.is_available(),
     "model": {
         "img_size": 112,
-        "pretrained_weight": "/content/ECE472/midterm/pretrained_weights/pit_b_820.pth"
     },
     "train": {
         "batch_size": 512,
@@ -71,11 +70,8 @@ CONFIG = {
         "optimizer": "SGD",
         "learning_rate": float(3e-2),
         "momentum": 0.9,
-        # "weight_decay": float(5e-4),
         "weight_decay": 0.0,
         "scheduler": "CosineAnnealingLR",
-        # "milestones": [60, 120, 160],
-        # "gamma": 0.2,
         "grad_clip": 1.0,
         "warm": 5,
         "log_iter": 100,
@@ -85,60 +81,66 @@ CONFIG = {
         "shuffle": True,
     },
     "test": {
+        "batch_size": 512,
         "shuffle": True,
     },
     "log_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "log"),
     "save_dir": os.path.join(os.path.dirname(os.path.realpath(__file__)), "save"),
 }
 
+VIT_CONFIG = {
+    'B16': {
+        'patch_size': 16,
+        'num_classes': int(CONFIG['dataset_name'][5:]),
+        'dim': 768,
+        'depth': 12,
+        'heads': 12,
+        'mlp_dim': 3072
+    },
+    'S16': {
+        'patch_size': 16,
+        'num_classes': int(CONFIG['dataset_name'][5:]),
+        'dim': 384,
+        'depth': 12,
+        'heads': 6,
+        'mlp_dim': 3072
+    },
+    'Ti16': {
+        'patch_size': 16,
+        'num_classes': int(CONFIG['dataset_name'][5:]),
+        'dim': 192,
+        'depth': 12,
+        'heads': 3,
+        'mlp_dim': 3072
+    }
+}
 
-PRETRAINED_MODELS = {
-    'B_16': {
-      'config': get_b16_config(),
-      'num_classes': 21843,
-      'image_size': (224, 224),
-      'url': "https://github.com/lukemelas/PyTorch-Pretrained-ViT/releases/download/0.0.2/B_16.pth"
+PIT_CONFIG = {
+    'B16': {
+        'patch_size': 14,
+        'num_classes': int(CONFIG['dataset_name'][5:]),
+        'stride': 7,
+        'base_dims': [64, 64, 64],
+        'depth': [3, 6, 4],
+        'heads': [4, 8, 16],
+        'mlp_ratio': 4
     },
-    'B_32': {
-      'config': get_b32_config(),
-      'num_classes': 21843,
-      'image_size': (224, 224),
-      'url': "https://github.com/lukemelas/PyTorch-Pretrained-ViT/releases/download/0.0.2/B_32.pth"
+    'S16': {
+        'patch_size': 16,
+        'num_classes': int(CONFIG['dataset_name'][5:]),
+        'stride': 8,
+        'base_dims': [48, 48, 48],
+        'depth': [2, 6, 4],
+        'heads': [3, 6, 12],
+        'mlp_ratio': 4
     },
-    'L_16': {
-      'config': get_l16_config(),
-      'num_classes': 21843,
-      'image_size': (224, 224),
-      'url': None
-    },
-    'L_32': {
-      'config': get_l32_config(),
-      'num_classes': 21843,
-      'image_size': (224, 224),
-      'url': "https://github.com/lukemelas/PyTorch-Pretrained-ViT/releases/download/0.0.2/L_32.pth"
-    },
-    'B_16_imagenet1k': {
-      'config': drop_head_variant(get_b16_config()),
-      'num_classes': 1000,
-      'image_size': (384, 384),
-      'url': "https://github.com/lukemelas/PyTorch-Pretrained-ViT/releases/download/0.0.2/B_16_imagenet1k.pth"
-    },
-    'B_32_imagenet1k': {
-      'config': drop_head_variant(get_b32_config()),
-      'num_classes': 1000,
-      'image_size': (384, 384),
-      'url': "https://github.com/lukemelas/PyTorch-Pretrained-ViT/releases/download/0.0.2/B_32_imagenet1k.pth"
-    },
-    'L_16_imagenet1k': {
-      'config': drop_head_variant(get_l16_config()),
-      'num_classes': 1000,
-      'image_size': (384, 384),
-      'url': "https://github.com/lukemelas/PyTorch-Pretrained-ViT/releases/download/0.0.2/L_16_imagenet1k.pth"
-    },
-    'L_32_imagenet1k': {
-      'config': drop_head_variant(get_l32_config()),
-      'num_classes': 1000,
-      'image_size': (384, 384),
-      'url': "https://github.com/lukemelas/PyTorch-Pretrained-ViT/releases/download/0.0.2/L_32_imagenet1k.pth"
-    },
+    'Ti16': {
+        'patch_size': 16,
+        'num_classes': int(CONFIG['dataset_name'][5:]),
+        'stride': 8,
+        'base_dims': [32, 32, 32],
+        'depth': [2, 6, 4],
+        'heads': [2, 4, 8],
+        'mlp_ratio': 4
+    }
 }

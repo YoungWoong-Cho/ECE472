@@ -1,5 +1,4 @@
 import time
-import numpy as np
 import torch
 import torch.optim as optim
 import torch.nn as nn
@@ -7,7 +6,7 @@ import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 
 from utils.metrics import *
-from utils.utils import WarmUpLR
+from utils.helpers import WarmUpLR
 from tqdm import trange
 
 

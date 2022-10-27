@@ -12,54 +12,15 @@ Modifications for timm by / Copyright 2020 Ross Wightman
 # Apache License v2.0
 
 import math
-import re
-from copy import deepcopy
+import torch
+
+from config import CONFIG, PIT_CONFIG
 from functools import partial
 from typing import Tuple
-
-import torch
 from torch import nn
 
-from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
-
-from utils.utils import as_tuple, trunc_normal_, resize_positional_embedding_
+from utils.helpers import as_tuple, trunc_normal_
 from .PiT_transformer import Block
-
-
-def _cfg(url='', **kwargs):
-    return {
-        'url': url,
-        'num_classes': 1000, 'input_size': (3, 224, 224), 'pool_size': None,
-        'crop_pct': .9, 'interpolation': 'bicubic', 'fixed_input_size': True,
-        'mean': IMAGENET_DEFAULT_MEAN, 'std': IMAGENET_DEFAULT_STD,
-        'first_conv': 'patch_embed.conv', 'classifier': 'head',
-        **kwargs
-    }
-
-
-default_cfgs = {
-    # deit models (FB weights)
-    'pit_ti_224': _cfg(
-        url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-pit-weights/pit_ti_730.pth'),
-    'pit_xs_224': _cfg(
-        url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-pit-weights/pit_xs_781.pth'),
-    'pit_s_224': _cfg(
-        url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-pit-weights/pit_s_809.pth'),
-    'pit_b_224': _cfg(
-        url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-pit-weights/pit_b_820.pth'),
-    'pit_ti_distilled_224': _cfg(
-        url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-pit-weights/pit_ti_distill_746.pth',
-        classifier=('head', 'head_dist')),
-    'pit_xs_distilled_224': _cfg(
-        url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-pit-weights/pit_xs_distill_791.pth',
-        classifier=('head', 'head_dist')),
-    'pit_s_distilled_224': _cfg(
-        url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-pit-weights/pit_s_distill_819.pth',
-        classifier=('head', 'head_dist')),
-    'pit_b_distilled_224': _cfg(
-        url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-pit-weights/pit_b_distill_840.pth',
-        classifier=('head', 'head_dist')),
-}
 
 
 class SequentialTuple(nn.Sequential):
@@ -258,61 +219,6 @@ class PiT(nn.Module):
         cls_tokens = self.norm(cls_tokens)
         return cls_tokens
     
-    def load_pretrained_weights(
-        self, 
-        weights_path=None, 
-        load_first_conv=True, 
-        load_fc=True, 
-        load_repr_layer=False,
-        resize_positional_embedding=False,
-        verbose=True,
-        strict=True,
-    ):
-        """Loads pretrained weights from weights path or download using url.
-        Args:
-            model (Module): Full model (a nn.Module)
-            model_name (str): Model name (e.g. B_16)
-            weights_path (None or str):
-                str: path to pretrained weights file on the local disk.
-                None: use pretrained weights downloaded from the Internet.
-            load_first_conv (bool): Whether to load patch embedding.
-            load_fc (bool): Whether to load pretrained weights for fc layer at the end of the model.
-            resize_positional_embedding=False,
-            verbose (bool): Whether to print on completion
-        """
-        
-        # Load or download weights
-        state_dict = torch.load(weights_path)
-
-        # Modifications to load partial state dict
-        expected_missing_keys = []
-        if not load_first_conv and 'patch_embedding.weight' in state_dict:
-            expected_missing_keys += ['patch_embedding.weight', 'patch_embedding.bias']
-        if not load_fc and 'head.weight' in state_dict:
-            expected_missing_keys += ['head.weight', 'head.bias']
-        if not load_repr_layer and 'pre_logits.weight' in state_dict:
-            expected_missing_keys += ['pre_logits.weight', 'pre_logits.bias']
-        for key in expected_missing_keys:
-            print(f'Missing keys popped: {key}')
-            state_dict.pop(key)
-
-        # Change size of positional embeddings
-        if resize_positional_embedding: 
-            posemb = state_dict['pos_embed']
-            posemb_new = self.state_dict()['pos_embed']
-            state_dict['pos_embed'] = \
-                resize_positional_embedding_(posemb=posemb, posemb_new=posemb_new, 
-                    has_class_token=True)
-
-        # Load state dict
-        ret = self.load_state_dict(state_dict, strict=False)
-        # if strict:
-        #     assert not ret.unexpected_keys, \
-        #         'Missing keys when loading pretrained weights: {}'.format(ret.unexpected_keys)
-        # else:
-        #     return ret
-        return ret
-
     def forward(self, x):
         x = self.forward_features(x)
         x_cls = self.head(x[:, 0])
@@ -324,3 +230,20 @@ class PiT(nn.Module):
                 return (x_cls + x_dist) / 2
         else:
             return x_cls
+
+def get_PiT(name):
+    assert name in PIT_CONFIG.keys(), \
+        f'name should be one of the followings: {PIT_CONFIG.keys()}'
+    
+    model = PiT(
+        img_size=CONFIG['model']['img_size'],
+        patch_size=PIT_CONFIG[name]['patch_size'],
+        num_classes=PIT_CONFIG[name]['num_classes'],
+        stride=PIT_CONFIG[name]['stride'],
+        base_dims=PIT_CONFIG[name]['base_dims'],
+        depth=PIT_CONFIG[name]['depth'],
+        heads=PIT_CONFIG[name]['heads'],
+        mlp_ratio=PIT_CONFIG[name]['mlp_ratio']
+    )
+
+    return model
