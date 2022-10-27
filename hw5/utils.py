@@ -5,26 +5,31 @@ from nltk.stem import PorterStemmer
 from nltk.stem import WordNetLemmatizer
 from tqdm import tqdm
 
-nltk.download('wordnet')
-nltk.download('omw-1.4')
+nltk.download("wordnet")
+nltk.download("omw-1.4")
 stemmer = PorterStemmer()
 lemmatizer = WordNetLemmatizer()
 
 
 def remove_punctuations(text):
-    return re.sub('[%s]' % re.escape(string.punctuation), '' , text)
+    return re.sub("[%s]" % re.escape(string.punctuation), "", text)
+
 
 def remove_digits(text):
-    return re.sub('W*dw*','',text)
+    return re.sub("W*dw*", "", text)
+
 
 def remove_extra_spaces(text):
-    return re.sub(' +', ' ', text)
+    return re.sub(" +", " ", text)
+
 
 def stem_words(text):
     return " ".join([stemmer.stem(word) for word in text.split()])
 
+
 def lemmatize_words(text):
     return " ".join([lemmatizer.lemmatize(word) for word in text.split()])
+
 
 # Reference: https://www.analyticsvidhya.com/blog/2021/06/must-known-techniques-for-text-preprocessing-in-nlp/
 def preprocess_texts(texts):

@@ -29,6 +29,7 @@ CONFIG = {
     },
 }
 
+
 def main(a):
     # Generate GT data
     dataset, tokenizer = get_dataset()
@@ -39,6 +40,7 @@ def main(a):
     # Prepare trainer
     trainer = train_with_cross_validate(dataset, tokenizer, model, 5, CONFIG)
     trainer()
+
 
 if __name__ == "__main__":
     app.run(main)

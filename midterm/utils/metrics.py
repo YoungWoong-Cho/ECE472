@@ -3,14 +3,15 @@ import numpy as np
 from config import CONFIG
 from tqdm import tqdm
 
+
 def top_k_accuracy(model, dataloader):
     model.eval()
     top1 = 0.0
     top5 = 0.0
-    
+
     for images, labels in tqdm(dataloader):
-        images = images.to(CONFIG['device'])
-        labels = labels.to(CONFIG['device'])
+        images = images.to(CONFIG["device"])
+        labels = labels.to(CONFIG["device"])
         output = model(images)
 
         output = output.cpu().detach().numpy()

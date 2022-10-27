@@ -16,7 +16,7 @@ class Trainer(object):
     def __init__(self, dataloader, model):
         self.dataloader = dataloader
         self.model = model
-        self.model.to(CONFIG['device'])
+        self.model.to(CONFIG["device"])
         self.criterion = getattr(nn, CONFIG["train"]["criterion"])()
         self.optimizer = getattr(optim, CONFIG["train"]["optimizer"])(
             self.model.parameters(),
@@ -28,10 +28,10 @@ class Trainer(object):
             torch.optim.lr_scheduler, CONFIG["train"]["scheduler"]
         )(
             self.optimizer,
-            T_max=CONFIG['train']['epoch'],
+            T_max=CONFIG["train"]["epoch"],
             eta_min=0.0,
-            last_epoch= -1,
-            verbose=False
+            last_epoch=-1,
+            verbose=False,
         )
         self.warmup_scheduler = WarmUpLR(
             self.optimizer,
@@ -51,8 +51,8 @@ class Trainer(object):
                 self.scheduler.step()
 
             for idx, (image, label) in enumerate(self.dataloader.train_dataloader):
-                image = image.to(CONFIG['device'])
-                label = label.to(CONFIG['device'])
+                image = image.to(CONFIG["device"])
+                label = label.to(CONFIG["device"])
 
                 self.optimizer.zero_grad()
                 output = self.model(image)
@@ -60,17 +60,18 @@ class Trainer(object):
                 if not loss.requires_grad:
                     loss.requires_grad = True
                 loss.backward()
-                nn.utils.clip_grad_norm_(self.model.parameters(), CONFIG['train']['grad_clip'])
+                nn.utils.clip_grad_norm_(
+                    self.model.parameters(), CONFIG["train"]["grad_clip"]
+                )
                 self.optimizer.step()
 
                 print(
-                    f"Epoch: {epoch} Iter: {idx}/{len(self.dataloader.train_dataloader)} [Train loss: {loss.cpu().detach().numpy():0.6f}]", end=' '
+                    f"Epoch: {epoch} Iter: {idx}/{len(self.dataloader.train_dataloader)} [Train loss: {loss.cpu().detach().numpy():0.6f}]",
+                    end=" ",
                 )
-                print(
-                    f"[Val acc: {val_accuracy}]"
-                )
+                print(f"[Val acc: {val_accuracy}]")
 
-                if global_i % CONFIG['train']['log_iter'] == 0:
+                if global_i % CONFIG["train"]["log_iter"] == 0:
                     self.writer.add_scalar(
                         "train/Cross Entropy Loss",
                         loss.cpu().detach().numpy(),
@@ -78,7 +79,7 @@ class Trainer(object):
                     )
                     self.writer.add_scalar(
                         "train/LR",
-                        self.optimizer.param_groups[0]['lr'],
+                        self.optimizer.param_groups[0]["lr"],
                         global_i,
                     )
 
@@ -91,18 +92,18 @@ class Trainer(object):
             val_accuracy = top_k_accuracy(self.model, self.dataloader.test_dataloader)
             self.writer.add_scalar(
                 "test/Top 1 accuracy",
-                val_accuracy['top1'],
+                val_accuracy["top1"],
                 epoch,
             )
             self.writer.add_scalar(
                 "test/Top 5 accuracy",
-                val_accuracy['top5'],
+                val_accuracy["top5"],
                 epoch,
             )
 
         train_accuracy = top_k_accuracy(self.model, self.dataloader.train_dataloader)
         val_accuracy = top_k_accuracy(self.model, self.dataloader.test_dataloader)
-        print(f'[Train acc: {train_accuracy}] [Val acc: {val_accuracy}]')
+        print(f"[Train acc: {train_accuracy}] [Val acc: {val_accuracy}]")
         self.save_model()
 
     def save_model(self):

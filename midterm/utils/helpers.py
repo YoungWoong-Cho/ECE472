@@ -22,7 +22,9 @@ class WarmUpLR(_LRScheduler):
 
 
 def compute_flops(model):
-    input = torch.rand([1, 3, CONFIG['model']['image_size'], CONFIG['model']['image_size']])
+    input = torch.rand(
+        [1, 3, CONFIG["model"]["image_size"], CONFIG["model"]["image_size"]]
+    )
     flops = FlopCountAnalysis(model, input)
     return flops.total()
 
@@ -31,7 +33,7 @@ def as_tuple(x):
     return x if isinstance(x, tuple) else (x, x)
 
 
-def truncated_normal(tensor, mean=0., std=1., a=-2., b=2.):
+def truncated_normal(tensor, mean=0.0, std=1.0, a=-2.0, b=2.0):
     """
     DeiT paper suggests to initialize the weights with a truncated normal distribution
     Referenced as :
@@ -39,8 +41,9 @@ def truncated_normal(tensor, mean=0., std=1., a=-2., b=2.):
         and architecture. NIPS, 31, 2018.
     https://arxiv.org/pdf/2012.12877.pdf
     """
+
     def norm_cdf(x):
-        return (1. + math.erf(x / math.sqrt(2.))) / 2.
+        return (1.0 + math.erf(x / math.sqrt(2.0))) / 2.0
 
     with torch.no_grad():
         l = norm_cdf((a - mean) / std)
@@ -48,12 +51,13 @@ def truncated_normal(tensor, mean=0., std=1., a=-2., b=2.):
 
         tensor.uniform_(2 * l - 1, 2 * u - 1)
         tensor.erfinv_()
-        tensor.mul_(std * math.sqrt(2.))
+        tensor.mul_(std * math.sqrt(2.0))
         tensor.add_(mean)
         tensor.clamp_(min=a, max=b)
         return tensor
 
-def save_img(data, idx, fname='img'):
+
+def save_img(data, idx, fname="img"):
     images = data[b"data"]
     img = np.transpose(images.reshape(-1, 3, 32, 32), (0, 2, 3, 1))[idx]
     img = Image.fromarray(img)
