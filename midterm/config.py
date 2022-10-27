@@ -9,7 +9,7 @@ CONFIG = {
     },
     "train": {
         "batch_size": 512,
-        "epoch": 1,
+        "epoch": 20,
         "shuffle": True,
         "criterion": "CrossEntropyLoss",
         "optimizer": "SGD",
