@@ -84,18 +84,19 @@ class ReplayBuffer:
         ):
             game_pos, pos_prob = self.sample_position(game_history)
 
-            values, rewards, policies, actions = self.make_target(
+            values, rewards, policies, actions, observations = self.make_target(
                 game_history, game_pos
             )
 
             index_batch.append([game_id, game_pos])
-            observation_batch.append(
-                game_history.get_stacked_observations(
-                    game_pos,
-                    self.config.stacked_observations,
-                    len(self.config.action_space),
-                )
-            )
+            # observation_batch.append(
+            #     game_history.get_stacked_observations(
+            #         game_pos,
+            #         self.config.stacked_observations,
+            #         len(self.config.action_space),
+            #     )
+            # )
+            observation_batch.append(observations)
             action_batch.append(actions)
             value_batch.append(values)
             reward_batch.append(rewards)
@@ -265,7 +266,7 @@ class ReplayBuffer:
         """
         Generate targets for every unroll steps.
         """
-        target_values, target_rewards, target_policies, actions = [], [], [], []
+        target_values, target_rewards, target_policies, actions, observations = [], [], [], [], []
         for current_index in range(
             state_index, state_index + self.config.num_unroll_steps + 1
         ):
@@ -276,6 +277,7 @@ class ReplayBuffer:
                 target_rewards.append(game_history.reward_history[current_index])
                 target_policies.append(game_history.child_visits[current_index])
                 actions.append(game_history.action_history[current_index])
+                observations.append(game_history.observation_history[current_index])
             elif current_index == len(game_history.root_values):
                 target_values.append(0)
                 target_rewards.append(game_history.reward_history[current_index])
@@ -287,6 +289,7 @@ class ReplayBuffer:
                     ]
                 )
                 actions.append(game_history.action_history[current_index])
+                observations.append(game_history.observation_history[current_index])
             else:
                 # States past the end of games are treated as absorbing states
                 target_values.append(0)
@@ -299,8 +302,9 @@ class ReplayBuffer:
                     ]
                 )
                 actions.append(numpy.random.choice(self.config.action_space))
+                observations.append(numpy.random.rand(*self.config.observation_shape)) # Should be updated
 
-        return target_values, target_rewards, target_policies, actions
+        return target_values, target_rewards, target_policies, actions, observations
 
 
 @ray.remote
