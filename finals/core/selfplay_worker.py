@@ -265,7 +265,7 @@ class DataWorker(object):
                         stack_obs = prepare_observation_lst(stack_obs)
                         stack_obs = torch.from_numpy(stack_obs).to(self.device).float() / 255.0
                     else:
-                        stack_obs = [game_history.step_obs() for game_history in game_histories]
+                        stack_obs = prepare_observation_lst(stack_obs, self.config.image_based)
                         stack_obs = torch.from_numpy(np.array(stack_obs)).to(self.device)
 
                     if self.config.amp_type == 'torch_amp':

@@ -10,6 +10,7 @@ from core.mcts import MCTS
 from core.model import concat_output, concat_output_value
 from core.utils import prepare_observation_lst, LinearSchedule
 
+from pdb import set_trace as bp
 
 @ray.remote
 class BatchWorker_CPU(object):
@@ -83,12 +84,13 @@ class BatchWorker_CPU(object):
                     beg_index = bootstrap_index - (state_index + td_steps)
                     end_index = beg_index + config.stacked_observations
                     obs = game_obs[beg_index:end_index]
+                    if not self.config.image_based:
+                        obs = obs.transpose(0, 2, 3 ,1)
                 else:
                     value_mask.append(0)
                     obs = zero_obs
 
-                value_obs_lst.append(obs)
-
+                value_obs_lst.append(np.array(obs))
         value_obs_lst = ray.put(value_obs_lst)
         reward_value_context = [value_obs_lst, value_mask, state_index_lst, rewards_lst, traj_lens, td_steps_lst]
         return reward_value_context
@@ -149,6 +151,8 @@ class BatchWorker_CPU(object):
                         beg_index = current_index - state_index
                         end_index = beg_index + config.stacked_observations
                         obs = game_obs[beg_index:end_index]
+                        if not self.config.image_based:
+                            obs = obs.transpose(0, 2, 3 ,1)
                     else:
                         policy_mask.append(0)
                         obs = zero_obs
@@ -197,7 +201,7 @@ class BatchWorker_CPU(object):
 
         re_num = int(batch_size * ratio)
         # formalize the input observations
-        obs_lst = prepare_observation_lst(obs_lst)
+        obs_lst = prepare_observation_lst(obs_lst, self.config.image_based)
 
         # formalize the inputs of a batch
         inputs_batch = [obs_lst, action_lst, mask_lst, indices_lst, weights_lst, make_time_lst]
@@ -305,7 +309,9 @@ class BatchWorker_GPU(object):
 
         batch_values, batch_value_prefixs = [], []
         with torch.no_grad():
-            value_obs_lst = prepare_observation_lst(value_obs_lst)
+            value_obs_lst = prepare_observation_lst(value_obs_lst, self.config.image_based)
+            if not self.config.image_based:
+                value_obs_lst = value_obs_lst.transpose(0, 3, 1, 2)
             # split a full batch into slices of mini_infer_size: to save the GPU memory for more GPU actors
             m_batch = self.config.mini_infer_size
             slices = np.ceil(batch_size / m_batch).astype(np.int_)
@@ -396,7 +402,9 @@ class BatchWorker_GPU(object):
         device = self.config.device
 
         with torch.no_grad():
-            policy_obs_lst = prepare_observation_lst(policy_obs_lst)
+            policy_obs_lst = prepare_observation_lst(policy_obs_lst, self.config.image_based)
+            if not self.config.image_based:
+                policy_obs_lst = policy_obs_lst.transpose(0, 3, 1, 2)
             # split a full batch into slices of mini_infer_size: to save the GPU memory for more GPU actors
             m_batch = self.config.mini_infer_size
             slices = np.ceil(batch_size / m_batch).astype(np.int_)
@@ -480,6 +488,7 @@ class BatchWorker_GPU(object):
             time.sleep(1)
         else:
             reward_value_context, policy_re_context, policy_non_re_context, inputs_batch, target_weights = input_countext
+            
             if target_weights is not None:
                 self.model.load_state_dict(target_weights)
                 self.model.to(self.config.device)

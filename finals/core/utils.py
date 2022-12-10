@@ -5,10 +5,12 @@ import torch
 import random
 import shutil
 import logging
+import math
 
 import numpy as np
 
 from scipy.stats import entropy
+from torch import optim
 
 
 class LinearSchedule(object):
@@ -34,6 +36,65 @@ class LinearSchedule(object):
         """See Schedule.value"""
         fraction = min(float(t) / self.schedule_timesteps, 1.0)
         return self.initial_p + fraction * (self.final_p - self.initial_p)
+
+
+class LARS(optim.Optimizer):
+    def __init__(self, params, lr, weight_decay=0, momentum=0.9, eta=0.001,
+                 weight_decay_filter=False, lars_adaptation_filter=False):
+        defaults = dict(lr=lr, weight_decay=weight_decay, momentum=momentum,
+                        eta=eta, weight_decay_filter=weight_decay_filter,
+                        lars_adaptation_filter=lars_adaptation_filter)
+        super().__init__(params, defaults)
+
+
+    def exclude_bias_and_norm(self, p):
+        return p.ndim == 1
+
+    @torch.no_grad()
+    def step(self):
+        for g in self.param_groups:
+            for p in g['params']:
+                dp = p.grad
+
+                if dp is None:
+                    continue
+
+                if not g['weight_decay_filter'] or not self.exclude_bias_and_norm(p):
+                    dp = dp.add(p, alpha=g['weight_decay'])
+
+                if not g['lars_adaptation_filter'] or not self.exclude_bias_and_norm(p):
+                    param_norm = torch.norm(p)
+                    update_norm = torch.norm(dp)
+                    one = torch.ones_like(param_norm)
+                    q = torch.where(param_norm > 0.,
+                                    torch.where(update_norm > 0,
+                                                (g['eta'] * param_norm / update_norm), one), one)
+                    dp = dp.mul(q)
+
+                param_state = self.state[p]
+                if 'mu' not in param_state:
+                    param_state['mu'] = torch.zeros_like(p)
+                mu = param_state['mu']
+                mu.mul_(g['momentum']).add_(dp)
+
+                p.add_(mu, alpha=-g['lr'])
+
+
+def adjust_lars_lr(config, optimizer, step_count):
+    max_steps = config.training_steps
+    base_lr = config.batch_size / 256
+    if step_count < config.lr_warm_step:
+        lr = base_lr * step_count / config.lr_warm_step
+    else:
+        step_count -= config.lr_warm_step
+        max_steps -= config.lr_warm_step
+        q = 0.5 * (1 + math.cos(math.pi * step_count / max_steps))
+        end_lr = base_lr * 0.001
+        lr = base_lr * q + end_lr * (1 - q)
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr * config.lars_learning_rate_weights
+        param_group['lr'] = lr * config.lars_learning_rate_biases
+    return lr
 
 
 class TimeLimit(gym.Wrapper):
@@ -304,17 +365,22 @@ def select_action(visit_counts, temperature=1, deterministic=True):
     return action_pos, count_entropy
 
 
-def prepare_observation_lst(observation_lst):
+def prepare_observation_lst(observation_lst, image_based=True):
     """Prepare the observations to satisfy the input fomat of torch
     [B, S, W, H, C] -> [B, S x C, W, H]
     batch, stack num, width, height, channel
     """
-    # B, S, W, H, C
-    observation_lst = np.array(observation_lst, dtype=np.uint8)
-    observation_lst = np.moveaxis(observation_lst, -1, 2)
+    if image_based:
+        # B, S, W, H, C
+        observation_lst = np.array(observation_lst, dtype=np.uint8)
+        observation_lst = np.moveaxis(observation_lst, -1, 2)
 
-    shape = observation_lst.shape
-    observation_lst = observation_lst.reshape((shape[0], -1, shape[-2], shape[-1]))
+        shape = observation_lst.shape
+        observation_lst = observation_lst.reshape((shape[0], -1, shape[-2], shape[-1]))
+    else:
+        observation_lst = np.array(observation_lst)
+        shape = observation_lst.shape
+        observation_lst = observation_lst.reshape((shape[0], -1, shape[-2], shape[-1]))
 
     return observation_lst
 

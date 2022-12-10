@@ -16,6 +16,14 @@ from core.replay_buffer import ReplayBuffer
 from core.storage import SharedStorage, QueueStorage
 from core.selfplay_worker import DataWorker
 from core.reanalyze_worker import BatchWorker_GPU, BatchWorker_CPU
+from .utils import LARS, adjust_lars_lr
+
+
+def off_diagonal(x):
+    # return a flattened view of the off-diagonal elements of a square matrix
+    n, m = x.shape
+    assert n == m
+    return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
 
 
 def consist_loss_func(f1, f2):
@@ -25,6 +33,14 @@ def consist_loss_func(f1, f2):
     f1 = F.normalize(f1, p=2., dim=-1, eps=1e-5)
     f2 = F.normalize(f2, p=2., dim=-1, eps=1e-5)
     return -(f1 * f2).sum(dim=1)
+
+
+def barlow_loss_func(z1, z2):
+    c = z1.T @ z2
+    on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
+    off_diag = off_diagonal(c).pow_(2).sum()
+    loss = on_diag + 0.0051 * off_diag
+    return loss
 
 
 def adjust_lr(config, optimizer, step_count):
@@ -41,7 +57,7 @@ def adjust_lr(config, optimizer, step_count):
     return lr
 
 
-def update_weights(model, batch, optimizer, replay_buffer, config, scaler, vis_result=False):
+def update_weights(model, batch, optimizer, replay_buffer, config, scaler, vis_result=False, optimizer_barlow=None):
     """update models given a batch data
     Parameters
     ----------
@@ -153,9 +169,14 @@ def update_weights(model, batch, optimizer, replay_buffer, config, scaler, vis_r
                     # obtain the oracle hidden states from representation function
                     _, _, _, presentation_state, _ = model.initial_inference(obs_target_batch[:, beg_index:end_index, :, :])
                     # no grad for the presentation_state branch
-                    dynamic_proj = model.project(hidden_state, with_grad=True)
-                    observation_proj = model.project(presentation_state, with_grad=False)
-                    temp_loss = consist_loss_func(dynamic_proj, observation_proj) * mask_batch[:, step_i]
+                    if config.barlow_loss:
+                        dynamic_proj = model.project(hidden_state)
+                        observation_proj = model.project(presentation_state)
+                        temp_loss = barlow_loss_func(dynamic_proj, observation_proj) * mask_batch[:, step_i]
+                    else:
+                        dynamic_proj = model.project(hidden_state, with_grad=True)
+                        observation_proj = model.project(presentation_state, with_grad=False)
+                        temp_loss = consist_loss_func(dynamic_proj, observation_proj) * mask_batch[:, step_i]
 
                     other_loss['consist_' + str(step_i + 1)] = temp_loss.mean().item()
                     consistency_loss += temp_loss
@@ -266,19 +287,27 @@ def update_weights(model, batch, optimizer, replay_buffer, config, scaler, vis_r
         total_loss = weighted_loss
         total_loss.register_hook(lambda grad: grad * gradient_scale)
     optimizer.zero_grad()
+    # if config.barlow_loss:
+    #     optimizer_barlow.zero_grad()
 
     if config.amp_type == 'none':
         total_loss.backward()
     elif config.amp_type == 'torch_amp':
         scaler.scale(total_loss).backward()
         scaler.unscale_(optimizer)
+        # if config.barlow_loss:
+        #     scaler.unscale_(optimizer_barlow)
 
     torch.nn.utils.clip_grad_norm_(parameters, config.max_grad_norm)
     if config.amp_type == 'torch_amp':
         scaler.step(optimizer)
+        # if config.barlow_loss:
+        #     scaler.step(optimizer_barlow)
         scaler.update()
     else:
         optimizer.step()
+        # if config.barlow_loss:
+        #     optimizer_barlow.step()
     # ----------------------------------------------------------------------------------
     # update priority
     new_priority = value_priority
