@@ -413,9 +413,12 @@ class BaseConfig(object):
         if args.revisit_policy_search_rate is not None:
             self.revisit_policy_search_rate = args.revisit_policy_search_rate
 
-        localtime = time.asctime(time.localtime(time.time()))
+        if args.exp_id == '':
+            exp_id = time.asctime(time.localtime(time.time()))
+        else:
+            exp_id = args.exp_id
         seed_tag = 'seed={}'.format(self.seed)
-        self.exp_path = os.path.join(args.result_dir, args.case, args.info, args.env, seed_tag, localtime)
+        self.exp_path = os.path.join(args.result_dir, args.case, args.info, args.env, seed_tag, exp_id)
 
         self.model_path = os.path.join(self.exp_path, 'model.p')
         self.model_dir = os.path.join(self.exp_path, 'model')

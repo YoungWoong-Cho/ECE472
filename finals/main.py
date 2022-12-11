@@ -53,6 +53,7 @@ if __name__ == '__main__':
     parser.add_argument('--load_model', action='store_true', default=False, help='choose to load model')
     parser.add_argument('--model_path', type=str, default='./results/test_model.p', help='load model path')
     parser.add_argument('--object_store_memory', type=int, default=10 * 1024 * 1024 * 1024, help='object store memory')
+    parser.add_argument('--exp_id', type=str, default='', help='experiment id')
 
     # Process arguments
     args = parser.parse_args()
