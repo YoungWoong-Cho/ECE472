@@ -2,13 +2,13 @@ import torch
 
 from core.config import BaseConfig
 from core.dataset import Transforms
-from .env_wrapper import Connect4BarlowWrapper
+from .env_wrapper import AtariBarlowWrapper
 from .model import EfficientZeroNet
 
 
-class Connect4BarlowConfig(BaseConfig):
+class AtariBarlowConfig(BaseConfig):
     def __init__(self):
-        super(Connect4BarlowConfig, self).__init__(
+        super(AtariBarlowConfig, self).__init__(
             training_steps=5000,
             last_steps=0,
             test_interval=100,
@@ -123,7 +123,7 @@ class Connect4BarlowConfig(BaseConfig):
             state_norm=self.state_norm)
 
     def new_game(self, seed=None, save_video=False, save_path=None, video_callable=None, uid=None, test=False, final_test=False):
-        return Connect4BarlowWrapper(discount=self.discount, cvt_string=self.cvt_string)
+        return AtariBarlowWrapper(discount=self.discount, cvt_string=self.cvt_string)
 
     def scalar_reward_loss(self, prediction, target):
         return -(torch.log_softmax(prediction, dim=1) * target).sum(1)
@@ -139,4 +139,4 @@ class Connect4BarlowConfig(BaseConfig):
         return self.transforms.transform(images)
 
 
-game_config = Connect4BarlowConfig()
+game_config = AtariBarlowConfig()

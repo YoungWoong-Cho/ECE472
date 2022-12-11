@@ -170,7 +170,7 @@ def update_weights(model, batch, optimizer, replay_buffer, config, scaler, vis_r
                     _, _, _, presentation_state, _ = model.initial_inference(obs_target_batch[:, beg_index:end_index, :, :])
                     # no grad for the presentation_state branch
                     if config.barlow_loss:
-                        dynamic_proj = model.project(hidden_state)
+                        dynamic_proj = model.project(hidden_state, config.barlow_loss)
                         observation_proj = model.project(presentation_state)
                         temp_loss = barlow_loss_func(dynamic_proj, observation_proj) * mask_batch[:, step_i]
                     else:

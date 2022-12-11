@@ -53,7 +53,7 @@ class AtariConfig(BaseConfig):
             reward_loss_coeff=1,
             value_loss_coeff=0.25,
             policy_loss_coeff=1,
-            consistency_coeff=2,
+            consistency_coeff=0.0001,
             # reward sum
             lstm_hidden_size=512,
             lstm_horizon_len=5,
@@ -81,6 +81,7 @@ class AtariConfig(BaseConfig):
         self.resnet_fc_value_layers = [32]  # Define the hidden layers in the value head of the prediction network
         self.resnet_fc_policy_layers = [32]  # Define the hidden layers in the policy head of the prediction network
         self.downsample = True  # Downsample observations before representation network (See paper appendix Network Architecture)
+        self.barlow_loss = True
 
     def visit_softmax_temperature_fn(self, num_moves, trained_steps):
         if self.change_temperature:

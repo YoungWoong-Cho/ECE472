@@ -533,6 +533,16 @@ class EfficientZeroNet(BaseNet):
             nn.ReLU(),
             nn.Linear(self.pred_hid, self.pred_out),
         )
+        self.projection_barlow = nn.Sequential(
+            nn.Linear(self.porjection_in_dim, self.proj_hid),
+            nn.BatchNorm1d(self.proj_hid),
+            nn.ReLU(),
+            nn.Linear(self.proj_hid, self.proj_hid),
+            nn.BatchNorm1d(self.proj_hid),
+            nn.ReLU(),
+            nn.Linear(self.proj_hid, self.proj_out),
+            nn.BatchNorm1d(self.proj_out, affine=False)
+        )
 
     def prediction(self, encoded_state):
         policy, value = self.prediction_network(encoded_state)
@@ -579,15 +589,20 @@ class EfficientZeroNet(BaseNet):
 
         return reward_w_dist, representation_mean, dynamic_mean, reward_mean
 
-    def project(self, hidden_state, with_grad=True):
+    def project(self, hidden_state, with_grad=True, barlow=False):
         # only the branch of proj + pred can share the gradients
-        hidden_state = hidden_state.view(-1, self.porjection_in_dim)
-        proj = self.projection(hidden_state)
-
-        # with grad, use proj_head
-        if with_grad:
-            proj = self.projection_head(proj)
+        if barlow:
+            hidden_state = hidden_state.view(-1, self.porjection_in_dim)
+            proj = self.projection_barlow(hidden_state)
             return proj
         else:
-            return proj.detach()
+            hidden_state = hidden_state.view(-1, self.porjection_in_dim)
+            proj = self.projection(hidden_state)
+
+            # with grad, use proj_head
+            if with_grad:
+                proj = self.projection_head(proj)
+                return proj
+            else:
+                return proj.detach()
 
