@@ -8,7 +8,7 @@ train_logger = logging.getLogger('train')
 test_logger = logging.getLogger('train_test')
 
 
-def _log(config, step_count, log_data, model, replay_buffer, lr, shared_storage, summary_writer, vis_result, lr_lars=0):
+def _log(config, step_count, log_data, model, replay_buffer, lr, shared_storage, summary_writer, vis_result):
     loss_data, td_data, priority_data = log_data
     total_loss, weighted_loss, loss, reg_loss, policy_loss, value_prefix_loss, value_loss, consistency_loss = loss_data
     if vis_result:
@@ -23,20 +23,12 @@ def _log(config, step_count, log_data, model, replay_buffer, lr, shared_storage,
 
     worker_ori_reward, worker_reward, worker_reward_max, worker_eps_len, worker_eps_len_max, test_counter, test_dict, temperature, visit_entropy, priority_self_play, distributions = worker_logs
 
-    if config.barlow_loss:
-        _msg = '#{:<10} Total Loss: {:<8.3f} [weighted Loss:{:<8.3f} Policy Loss: {:<8.3f} Value Loss: {:<8.3f} ' \
-            'Reward Sum Loss: {:<8.3f} Consistency Loss: {:<8.3f} ] ' \
-            'Replay Episodes Collected: {:<10d} Buffer Size: {:<10d} Transition Number: {:<8.3f}k ' \
-            'Batch Size: {:<10d} Lr: {:<8.3f}, LARS Lr: {:<8.3f}'
-        _msg = _msg.format(step_count, total_loss, weighted_loss, policy_loss, value_loss, value_prefix_loss, consistency_loss,
-                        replay_episodes_collected, replay_buffer_size, total_num / 1000, config.batch_size, lr, lr_lars)
-    else:
-        _msg = '#{:<10} Total Loss: {:<8.3f} [weighted Loss:{:<8.3f} Policy Loss: {:<8.3f} Value Loss: {:<8.3f} ' \
-           'Reward Sum Loss: {:<8.3f} Consistency Loss: {:<8.3f} ] ' \
-           'Replay Episodes Collected: {:<10d} Buffer Size: {:<10d} Transition Number: {:<8.3f}k ' \
-           'Batch Size: {:<10d} Lr: {:<8.3f}'
-        _msg = _msg.format(step_count, total_loss, weighted_loss, policy_loss, value_loss, value_prefix_loss, consistency_loss,
-                        replay_episodes_collected, replay_buffer_size, total_num / 1000, config.batch_size, lr)
+    _msg = '#{:<10} Total Loss: {:<8.3f} [weighted Loss:{:<8.3f} Policy Loss: {:<8.3f} Value Loss: {:<8.3f} ' \
+        'Reward Sum Loss: {:<8.3f} Consistency Loss: {:<8.3f} ] ' \
+        'Replay Episodes Collected: {:<10d} Buffer Size: {:<10d} Transition Number: {:<8.3f}k ' \
+        'Batch Size: {:<10d} Lr: {:<8.3f}, LARS Lr: {:<8.3f}'
+    _msg = _msg.format(step_count, total_loss, weighted_loss, policy_loss, value_loss, value_prefix_loss, consistency_loss,
+                    replay_episodes_collected, replay_buffer_size, total_num / 1000, config.batch_size, lr)
     train_logger.info(_msg)
 
     if test_dict is not None:
@@ -120,8 +112,6 @@ def _log(config, step_count, log_data, model, replay_buffer, lr, shared_storage,
         summary_writer.add_scalar('{}/replay_buffer_len'.format(tag), replay_buffer_size, step_count)
         summary_writer.add_scalar('{}/total_node_num'.format(tag), total_num, step_count)
         summary_writer.add_scalar('{}/lr'.format(tag), lr, step_count)
-        if config.barlow_loss:
-            summary_writer.add_scalar('{}/lr_lars'.format(tag), lr_lars, step_count)
 
         if worker_reward is not None:
             summary_writer.add_scalar('workers/ori_reward', worker_ori_reward, step_count)

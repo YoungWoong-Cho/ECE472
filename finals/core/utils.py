@@ -80,8 +80,8 @@ class LARS(optim.Optimizer):
                 p.add_(mu, alpha=-g['lr'])
 
 
-def adjust_lr(config, optimizer, step_count, barlow=False):
-    if barlow:
+def adjust_lr(config, optimizer, step_count, lars=False):
+    if lars:
         max_steps = config.training_steps
         base_lr = config.batch_size / 256
         if step_count < config.lr_warm_step:

@@ -360,7 +360,7 @@ def _train(model, target_model, replay_buffer, shared_storage, batch_storage, co
     model = model.to(config.device)
     target_model = target_model.to(config.device)
 
-    if config.barlow_loss:
+    if config.lars:
         optimizer = LARS(model.parameters(), lr=0, weight_decay=config.lars_weight_decay,
                          weight_decay_filter=True,
                          lars_adaptation_filter=True)
@@ -402,7 +402,7 @@ def _train(model, target_model, replay_buffer, shared_storage, batch_storage, co
             time.sleep(0.3)
             continue
         shared_storage.incr_counter.remote()
-        lr = adjust_lr(config, optimizer, step_count)
+        lr = adjust_lr(config, optimizer, step_count, config.lars)
 
         # update model for self-play
         if step_count % config.checkpoint_interval == 0:
