@@ -16,7 +16,7 @@ from core.replay_buffer import ReplayBuffer
 from core.storage import SharedStorage, QueueStorage
 from core.selfplay_worker import DataWorker
 from core.reanalyze_worker import BatchWorker_GPU, BatchWorker_CPU
-from .utils import LARS, adjust_lars_lr
+from .utils import LARS, adjust_lr
 
 
 def off_diagonal(x):
@@ -41,20 +41,6 @@ def barlow_loss_func(z1, z2):
     off_diag = off_diagonal(c).pow_(2).sum()
     loss = on_diag + 0.0051 * off_diag
     return loss
-
-
-def adjust_lr(config, optimizer, step_count):
-    # adjust learning rate, step lr every lr_decay_steps
-    if step_count < config.lr_warm_step:
-        lr = config.lr_init * step_count / config.lr_warm_step
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = lr
-    else:
-        lr = config.lr_init * config.lr_decay_rate ** ((step_count - config.lr_warm_step) // config.lr_decay_steps)
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = lr
-
-    return lr
 
 
 def update_weights(model, batch, optimizer, replay_buffer, config, scaler, vis_result=False, optimizer_barlow=None):
@@ -374,8 +360,13 @@ def _train(model, target_model, replay_buffer, shared_storage, batch_storage, co
     model = model.to(config.device)
     target_model = target_model.to(config.device)
 
-    optimizer = optim.SGD(model.parameters(), lr=config.lr_init, momentum=config.momentum,
-                          weight_decay=config.weight_decay)
+    if config.barlow_loss:
+        optimizer = LARS(model.parameters(), lr=0, weight_decay=config.lars_weight_decay,
+                         weight_decay_filter=True,
+                         lars_adaptation_filter=True)
+    else:
+        optimizer = optim.SGD(model.parameters(), lr=config.lr_init, momentum=config.momentum,
+                            weight_decay=config.weight_decay)
 
     scaler = GradScaler()
 

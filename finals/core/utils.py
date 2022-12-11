@@ -80,21 +80,34 @@ class LARS(optim.Optimizer):
                 p.add_(mu, alpha=-g['lr'])
 
 
-def adjust_lars_lr(config, optimizer, step_count):
-    max_steps = config.training_steps
-    base_lr = config.batch_size / 256
-    if step_count < config.lr_warm_step:
-        lr = base_lr * step_count / config.lr_warm_step
+def adjust_lr(config, optimizer, step_count, barlow=False):
+    if barlow:
+        max_steps = config.training_steps
+        base_lr = config.batch_size / 256
+        if step_count < config.lr_warm_step:
+            lr = base_lr * step_count / config.lr_warm_step
+        else:
+            step_count -= config.lr_warm_step
+            max_steps -= config.lr_warm_step
+            q = 0.5 * (1 + math.cos(math.pi * step_count / max_steps))
+            end_lr = base_lr * 0.001
+            lr = base_lr * q + end_lr * (1 - q)
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr * config.lars_learning_rate_weights
+            param_group['lr'] = lr * config.lars_learning_rate_biases
+        return lr
     else:
-        step_count -= config.lr_warm_step
-        max_steps -= config.lr_warm_step
-        q = 0.5 * (1 + math.cos(math.pi * step_count / max_steps))
-        end_lr = base_lr * 0.001
-        lr = base_lr * q + end_lr * (1 - q)
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr * config.lars_learning_rate_weights
-        param_group['lr'] = lr * config.lars_learning_rate_biases
-    return lr
+        # adjust learning rate, step lr every lr_decay_steps
+        if step_count < config.lr_warm_step:
+            lr = config.lr_init * step_count / config.lr_warm_step
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = lr
+        else:
+            lr = config.lr_init * config.lr_decay_rate ** ((step_count - config.lr_warm_step) // config.lr_decay_steps)
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = lr
+
+        return lr
 
 
 class TimeLimit(gym.Wrapper):
