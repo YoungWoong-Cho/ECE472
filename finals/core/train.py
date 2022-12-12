@@ -379,6 +379,8 @@ def _train(model, target_model, replay_buffer, shared_storage, batch_storage, co
 
     # wait until collecting enough data to start
     while not (ray.get(replay_buffer.get_total_len.remote()) >= config.start_transitions):
+        if not ray.get(shared_storage.get_start_signal.remote())
+        print(f'Gathering from replay buffer... {ray.get(replay_buffer.get_total_len.remote())}/{config.start_transitions}', end='\r')
         time.sleep(1)
         pass
     print('Begin training...')
@@ -473,16 +475,24 @@ def train(config, summary_writer, model_path=None):
     workers = []
 
     # reanalyze workers
+    print(f'CPU workers...', end=' ')
     cpu_workers = [BatchWorker_CPU.remote(idx, replay_buffer, storage, batch_storage, mcts_storage, config) for idx in range(config.cpu_actor)]
     workers += [cpu_worker.run.remote() for cpu_worker in cpu_workers]
+    print('done.')
+    print(f'GPU workers...', end=' ')
     gpu_workers = [BatchWorker_GPU.remote(idx, replay_buffer, storage, batch_storage, mcts_storage, config) for idx in range(config.gpu_actor)]
     workers += [gpu_worker.run.remote() for gpu_worker in gpu_workers]
+    print('done.')
 
     # self-play workers
+    print(f'Data workers...', end=' ')
     data_workers = [DataWorker.remote(rank, replay_buffer, storage, config) for rank in range(0, config.num_actors)]
     workers += [worker.run.remote() for worker in data_workers]
+    print('done.')
     # test workers
+    print(f'Test workers...', end=' ')
     workers += [_test.remote(config, storage)]
+    print('done.')
 
     # training loop
     final_weights = _train(model, target_model, replay_buffer, storage, batch_storage, config, summary_writer)
