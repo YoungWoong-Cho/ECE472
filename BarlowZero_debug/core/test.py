@@ -41,7 +41,7 @@ def _test(config, shared_storage):
                 'min_score': test_score.min(),
             }
 
-            shared_storage.add_test_log.remote(counter, test_log)
+            shared_storage.add_test_log(counter, test_log)
             print('Training step {}, test scores: \n{} of {} eval steps.'.format(counter, test_score, eval_steps))
 
         time.sleep(30)

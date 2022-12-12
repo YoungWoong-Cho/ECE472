@@ -45,7 +45,7 @@ class DataWorker(object):
     def free(self):
         # save the game histories and clear the pool
         if self.len_pool() >= self.pool_size:
-            self.replay_buffer.save_pools.remote(self.trajectory_pool, self.gap_step)
+            self.replay_buffer.save_pools(self.trajectory_pool, self.gap_step)
             del self.trajectory_pool[:]
 
     def put_last_trajectory(self, i, last_game_histories, last_game_priorities, game_histories):
@@ -207,7 +207,7 @@ class DataWorker(object):
                                 log_self_play_rewards = 0
                                 log_self_play_ori_rewards = 0
 
-                            self.storage.set_data_worker_logs.remote(log_self_play_moves, self_play_moves_max,
+                            self.storage.set_data_worker_logs(log_self_play_moves, self_play_moves_max,
                                                                             log_self_play_ori_rewards, log_self_play_rewards,
                                                                             self_play_rewards_max, _temperature.mean(),
                                                                             visit_entropies, 0,
@@ -382,7 +382,7 @@ class DataWorker(object):
 
                 other_dist = {}
                 # send logs
-                self.storage.set_data_worker_logs.remote(log_self_play_moves, self_play_moves_max,
+                self.storage.set_data_worker_logs(log_self_play_moves, self_play_moves_max,
                                                                 log_self_play_ori_rewards, log_self_play_rewards,
                                                                 self_play_rewards_max, _temperature.mean(),
                                                                 visit_entropies, 0,

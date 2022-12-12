@@ -16,9 +16,9 @@ def _log(config, step_count, log_data, model, replay_buffer, lr, shared_storage,
         batch_weights, batch_indices = priority_data
 
     replay_episodes_collected, replay_buffer_size, priorities, total_num, worker_logs = [
-        replay_buffer.episodes_collected.remote(), replay_buffer.size.remote(),
-        replay_buffer.get_priorities.remote(), replay_buffer.get_total_len.remote(),
-        shared_storage.get_worker_logs.remote()]
+        replay_buffer.episodes_collected(), replay_buffer.size(),
+        replay_buffer.get_priorities(), replay_buffer.get_total_len(),
+        shared_storage.get_worker_logs()]
 
     worker_ori_reward, worker_reward, worker_reward_max, worker_eps_len, worker_eps_len_max, test_counter, test_dict, temperature, visit_entropy, priority_self_play, distributions = worker_logs
 

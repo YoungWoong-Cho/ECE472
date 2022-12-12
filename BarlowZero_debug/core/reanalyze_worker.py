@@ -237,7 +237,7 @@ class BatchWorker_CPU(object):
                 time.sleep(1)
                 continue
 
-            ray_data_lst = [self.storage.get_counter.remote(), self.storage.get_target_weights.remote()]
+            ray_data_lst = [self.storage.get_counter(), self.storage.get_target_weights()]
             trained_steps, target_weights = ray_data_lst
 
             beta = self.beta_schedule.value(trained_steps)
