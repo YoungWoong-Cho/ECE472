@@ -156,12 +156,12 @@ def update_weights(model, batch, optimizer, replay_buffer, config, scaler, vis_r
                     _, _, _, presentation_state, _ = model.initial_inference(obs_target_batch[:, beg_index:end_index, :, :])
                     # no grad for the presentation_state branch
                     if config.barlow_loss:
-                        dynamic_proj = model.project(hidden_state, config.barlow_loss)
-                        observation_proj = model.project(presentation_state)
+                        dynamic_proj = model.project(hidden_state, with_grad=True, barlow=config.barlow_loss)
+                        observation_proj = model.project(presentation_statewith_grad=True, barlow=config.balow_loss)
                         temp_loss = barlow_loss_func(dynamic_proj, observation_proj) * mask_batch[:, step_i]
                     else:
-                        dynamic_proj = model.project(hidden_state, with_grad=True)
-                        observation_proj = model.project(presentation_state, with_grad=False)
+                        dynamic_proj = model.project(hidden_state, with_grad=True, barlow=config.barlow_loss)
+                        observation_proj = model.project(presentation_state, with_grad=False, barlow=config.barlow_loss)
                         temp_loss = consist_loss_func(dynamic_proj, observation_proj) * mask_batch[:, step_i]
 
                     other_loss['consist_' + str(step_i + 1)] = temp_loss.mean().item()
@@ -383,6 +383,7 @@ def _train(model, target_model, replay_buffer, shared_storage, batch_storage, co
             print(f'Gathering from replay buffer... {ray.get(replay_buffer.get_total_len.remote())}/{config.start_transitions}', end='\r')
         time.sleep(1)
         pass
+    print()
     print('Begin training...')
     # set signals for other workers
     shared_storage.set_start_signal.remote()
