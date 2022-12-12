@@ -1,5 +1,6 @@
 import ray
 import logging
+import wandb
 
 import numpy as np
 
@@ -132,3 +133,15 @@ def _log(config, step_count, log_data, model, replay_buffer, lr, shared_storage,
         if test_dict is not None:
             for key, val in test_dict.items():
                 summary_writer.add_scalar('train/{}'.format(key), np.mean(val), test_counter)
+        
+        wandb.log({
+            'train/total loss': total_loss,
+            'train/policy loss': policy_loss,
+            'train/value loss': value_loss,
+            'train/consistency loss': consistency_loss,
+            'train/learning rate': lr,
+            'workers/ori_reward': worker_ori_reward,
+            'workers/clip_reward': worker_reward,
+            'workers/eps_len': worker_eps_len,
+            'workers/priority_self_play': priority_self_play,
+        }, step=step_count)

@@ -4,6 +4,7 @@ import os
 
 import numpy as np
 import ray
+import wandb
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
@@ -52,11 +53,15 @@ if __name__ == '__main__':
     parser.add_argument('--info', type=str, default='none', help='debug string')
     parser.add_argument('--load_model', action='store_true', default=False, help='choose to load model')
     parser.add_argument('--model_path', type=str, default='./results/test_model.p', help='load model path')
-    parser.add_argument('--object_store_memory', type=int, default=10 * 1024 * 1024 * 1024, help='object store memory')
+    parser.add_argument('--object_store_memory', type=int, default=15 * 1024 * 1024 * 1024, help='object store memory')
     parser.add_argument('--exp_id', type=str, default='', help='experiment id')
 
     # Process arguments
     args = parser.parse_args()
+    
+    wandb.init(project="barlowzero", name=args.exp_id)
+    wandb.config.update(args)
+    
     args.device = 'cuda' if (not args.no_cuda) and torch.cuda.is_available() else 'cpu'
     assert args.revisit_policy_search_rate is None or 0 <= args.revisit_policy_search_rate <= 1, \
         ' Revisit policy search rate should be in [0,1]'
@@ -73,10 +78,6 @@ if __name__ == '__main__':
     # import corresponding configuration , neural networks and envs
     if args.case == 'atari':
         from config.atari import game_config
-    elif args.case == 'connect4':
-        from config.connect4 import game_config
-    elif args.case == 'connect4_barlow':
-        from config.connect4_barlow import game_config
     else:
         raise Exception('Invalid --case option')
 
@@ -98,6 +99,9 @@ if __name__ == '__main__':
             else:
                 model_path = None
             model, weights = train(game_config, summary_writer, model_path)
+
+            wandb.watch(model)
+
             model.set_weights(weights)
             total_steps = game_config.training_steps + game_config.last_steps
             test_score, _, test_path = test(game_config, model.to(device), total_steps, game_config.test_episodes, device, render=False, save_video=args.save_video, final_test=True, use_pb=True)
