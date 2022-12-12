@@ -379,8 +379,8 @@ def _train(model, target_model, replay_buffer, shared_storage, batch_storage, co
 
     # wait until collecting enough data to start
     while not (ray.get(replay_buffer.get_total_len.remote()) >= config.start_transitions):
-        if not ray.get(shared_storage.get_start_signal.remote())
-        print(f'Gathering from replay buffer... {ray.get(replay_buffer.get_total_len.remote())}/{config.start_transitions}', end='\r')
+        if not ray.get(shared_storage.get_start_signal.remote()):
+            print(f'Gathering from replay buffer... {ray.get(replay_buffer.get_total_len.remote())}/{config.start_transitions}', end='\r')
         time.sleep(1)
         pass
     print('Begin training...')
