@@ -36,10 +36,20 @@ def consist_loss_func(f1, f2):
 
 
 def barlow_loss_func(z1, z2):
-    c = z1.T @ z2
-    on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
-    off_diag = off_diagonal(c).pow_(2).sum()
-    loss = on_diag + 0.0051 * off_diag
+    z1 = (z1 - z1.mean(0)) / z1.std(0)
+    z2 = (z2 - z2.mean(0)) / z2.std(0)
+
+    N = z1.size(0)
+    D = z1.size(1)
+
+    c = torch.mm(z1.T, z2) / N
+    # on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
+    # off_diag = off_diagonal(c).pow_(2).sum()
+    # loss = on_diag + 0.0051 * off_diag
+    c_diff = (c - torch.eye(D, device='cuda')).pow(2)
+    c_diff[~torch.eye(D, dtype=bool)] *= 0.0051
+    loss = c_diff.sum()
+
     return loss
 
 
