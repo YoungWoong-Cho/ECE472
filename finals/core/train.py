@@ -157,7 +157,7 @@ def update_weights(model, batch, optimizer, replay_buffer, config, scaler, vis_r
                     # no grad for the presentation_state branch
                     if config.barlow_loss:
                         dynamic_proj = model.project(hidden_state, with_grad=True, barlow=config.barlow_loss)
-                        observation_proj = model.project(presentation_statewith_grad=True, barlow=config.barlow_loss)
+                        observation_proj = model.project(presentation_state, with_grad=True, barlow=config.barlow_loss)
                         temp_loss = barlow_loss_func(dynamic_proj, observation_proj) * mask_batch[:, step_i]
                     else:
                         dynamic_proj = model.project(hidden_state, with_grad=True, barlow=config.barlow_loss)
