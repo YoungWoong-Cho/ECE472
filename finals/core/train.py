@@ -181,7 +181,7 @@ def update_weights(model, batch, optimizer, replay_buffer, config, scaler, vis_r
                 value_loss += config.scalar_value_loss(value, target_value_phi[:, step_i + 1]) * mask_batch[:, step_i]
                 value_prefix_loss += config.scalar_reward_loss(value_prefix, target_value_prefix_phi[:, step_i]) * mask_batch[:, step_i]
                 # Follow MuZero, set half gradient
-                hidden_state.register_hook(lambda grad: grad * 0.5)
+                # hidden_state.register_hook(lambda grad: grad * 0.5)
 
                 # reset hidden states
                 if (step_i + 1) % config.lstm_horizon_len == 0:
@@ -374,7 +374,7 @@ def _train(model, target_model, replay_buffer, shared_storage, batch_storage, co
         # optimizer = LARS(model.parameters(), lr=0, weight_decay=config.lars_weight_decay,
         #                  weight_decay_filter=True,
         #                  lars_adaptation_filter=True)
-        optimizer = optim.SGD(model.parameters(), lr=1e-3,
+        optimizer = optim.SGD(model.parameters(), lr=1e-2,
                                      momentum=0.9, weight_decay=5e-4)
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, config.training_steps)
     else:

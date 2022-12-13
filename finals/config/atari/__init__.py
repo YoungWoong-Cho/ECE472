@@ -38,7 +38,7 @@ class AtariConfig(BaseConfig):
             image_based=True,
             # lr scheduler
             lr_warm_up=0.01,
-            lr_init=0.2,
+            lr_init=0.2, 
             lr_decay_rate=0.1,
             lr_decay_steps=100000,
             auto_td_steps_ratio=0.3,
@@ -52,8 +52,8 @@ class AtariConfig(BaseConfig):
             # coefficient
             reward_loss_coeff=1,
             value_loss_coeff=0.25,
-            policy_loss_coeff=1,
-            consistency_coeff=0.00001,
+            policy_loss_coeff=10,
+            consistency_coeff=1e-3,
             # reward sum
             lstm_hidden_size=512,
             lstm_horizon_len=5,
