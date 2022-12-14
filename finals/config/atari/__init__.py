@@ -38,7 +38,7 @@ class AtariConfig(BaseConfig):
             image_based=True,
             # lr scheduler
             lr_warm_up=0.01,
-            lr_init=0.2, 
+            lr_init=1e-2, 
             lr_decay_rate=0.1,
             lr_decay_steps=100000,
             auto_td_steps_ratio=0.3,
@@ -81,8 +81,9 @@ class AtariConfig(BaseConfig):
         self.resnet_fc_value_layers = [32]  # Define the hidden layers in the value head of the prediction network
         self.resnet_fc_policy_layers = [32]  # Define the hidden layers in the policy head of the prediction network
         self.downsample = True  # Downsample observations before representation network (See paper appendix Network Architecture)
+        self.weight_decay = 5e-4
         self.barlow_loss = True
-        self.lars = True
+        self.lars = False
         self.lars_weight_decay = 0.0051
         self.lars_learning_rate_weights = 0.2
         self.lars_learning_rate_biases = 0.0048
